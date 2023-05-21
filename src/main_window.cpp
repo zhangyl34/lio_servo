@@ -1,6 +1,3 @@
-#include <QtGui>
-#include <QMessageBox>
-#include <iostream>
 #include "qtros/main_window.h"
 
 namespace class1_ros_qt_demo {
@@ -215,7 +212,7 @@ MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
     // qApp 是 QApplication 对象的全局指针
     QObject::connect(ui.actionAbout_Qt, SIGNAL(triggered(bool)), qApp, SLOT(aboutQt()));
     // 显示页
-    ui.tab_manager->setCurrentIndex(1);
+    ui.tab_manager->setCurrentIndex(0);
 
     // 更新 log
     ui.listView2->setModel(lioNode.loggingModel());
@@ -233,6 +230,13 @@ MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
 
     // refresh_ui_timer = sr::createTimer(TIME_UNIT_MS, 500, refreshUITimerFun, this, SR_TRUE);
 	// sr::startTimer(refresh_ui_timer);
+
+    /***Close-loop control***/
+    timer_path = new QTimer(this);
+    QObject::connect(timer_path, SIGNAL(timeout()), this, SLOT(updatePath()));
+    QObject::connect(ui.button1_readPath, SIGNAL(released()), this, SLOT(button1_readPath_slot()));
+    QObject::connect(ui.button1_startTest, SIGNAL(released()), this, SLOT(button1_startTest_slot()));
+    QObject::connect(ui.button1_stopTest, SIGNAL(released()), this, SLOT(button1_stopTest_slot()));
 }
 
 MainWindow::~MainWindow() {
@@ -303,6 +307,48 @@ void MainWindow::endLIO() {
 // 	mw->ui.label2_7->setText(QString::number(mw->motor_1_drive_control.currentVelocity()));
 // 	mw->ui.label2_13->setText(QString::number(mw->motor_2_drive_control.currentVelocity()));
 // }
+
+/***Close-loop control***/
+void MainWindow::updatePath() {
+	// video_frame = GxCamera->getImgFlow();
+	// cv::Mat img_temp;
+	// cv::resize(video_frame, img_temp, cv::Size(), 0.2, 0.2);
+	// //cv::imshow("frame", img_temp);
+	// //cv::waitKey(1);
+	// QImage srcQImage = QImage((uchar*)(img_temp.data), img_temp.cols, img_temp.rows, img_temp.step, QImage::Format_Grayscale8);
+	// ui.label_imgFlow->setPixmap(QPixmap::fromImage(srcQImage));
+	// ui.label_imgFlow->resize(srcQImage.size());
+	// ui.label_imgFlow->show();
+}
+
+void MainWindow::button1_readPath_slot() {
+	pathIn.clear();
+
+    // read path
+
+    // draw path
+    cv::Scalar color2(17, 204, 254);
+    int halfWidth = 150;
+	int height = 350;
+	cv::Mat pathImg = cv::Mat(cv::Size(halfWidth*2,height), CV_8UC3, cv::Scalar(0,0,0));
+    for (int i=0; i<pathIn.size(); i++) {
+        cv::circle(pathImg, cv::Point(halfWidth + pathIn.at(i)[0] / 10.0, height - pathIn.at(i)[1] / 10.0), 2, color2, -1);
+    }
+	QImage srcQImage = QImage((uchar*)(pathImg.data), pathImg.cols, pathImg.rows, pathImg.step, QImage::Format_RGB888);
+	ui.label1_3->setPixmap(QPixmap::fromImage(srcQImage));
+	ui.label1_3->resize(srcQImage.size());
+	ui.label1_3->show();
+}
+
+void MainWindow::button1_startTest_slot() {
+    timer_path->start(33);
+
+}
+
+void MainWindow::button1_stopTest_slot() {
+    timer_path->stop();
+
+}
 
 }  // namespace class1_ros_qt_demo
 

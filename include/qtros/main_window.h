@@ -1,6 +1,11 @@
 #pragma once
 
 #include <QtWidgets/QMainWindow>
+#include <QtGui>
+#include <QMessageBox>
+#include <iostream>
+#include <opencv2/opencv.hpp>
+
 #include "ui_main_window.h"
 #include "qnode.h"
 #include "lio/qnode_lio.h"
@@ -119,17 +124,27 @@ public Q_SLOTS:
 	// void button2_canSend_slot();
 	// void button2_canStop_slot();
 
-private:
-	/***CAN***/
-	// static void refreshUITimerFun(void *);
-	// sr::TimerId refresh_ui_timer;
-	// MotorDriveControl motor_1_drive_control, motor_2_drive_control;
+	/***Close-loop control***/
+	void updatePath();
+	void button1_readPath_slot();
+	void button1_startTest_slot();
+	void button1_stopTest_slot();
 
+private:
 	int main_argc;
 	char** main_argv;
 	Ui::MainWindowDesign ui;
 	QNode qnode;
 	LIONode lioNode;
+
+	/***CAN***/
+	// static void refreshUITimerFun(void *);
+	// sr::TimerId refresh_ui_timer;
+	// MotorDriveControl motor_1_drive_control, motor_2_drive_control;
+
+	/***Close-loop control***/
+	QTimer* timer_path;
+	std::vector<Eigen::Vector2d> pathIn;
 };
 
 }  // namespace class1_ros_qt_demo
