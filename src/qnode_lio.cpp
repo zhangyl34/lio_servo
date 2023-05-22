@@ -4,13 +4,12 @@ namespace class1_ros_qt_demo {
 
 LIONode::LIONode() :
 	_LASER_POINT_COV(0.001), _INIT_TIME(0.1),
-    scan_pub_en(true), pcd_save_en(true), dense_pub_en(true), 
+    scan_pub_en(true), pcd_save_en(true), dense_pub_en(true), flg_exit(false),
     filter_size_map_min(0.05), filter_size_surf_min(0.5),
-    last_timestamp_lidar(0.0), last_timestamp_imu(-1.0),
-    flg_exit(false), lidar_end_time(0.0), 
+    last_timestamp_lidar(0.0), last_timestamp_imu(-1.0), lidar_end_time(0.0), 
     gyr_cov(0.5), acc_cov(0.5), b_gyr_cov(0.0005), b_acc_cov(0.0005), num_max_iterations(4),
-    lid_topic("/livox/lidar"), imu_topic("/imu"), param_blind(0.5), param_scans(1),
-    param_filters(2), param_reflect(10) {
+    lid_topic("/livox/lidar"), imu_topic("/imu"),
+    param_blind(0.5), param_scans(1), param_filters(2), param_reflect(10) {
 
     p_pre.reset(new Preprocess());
     p_imu.reset(new ImuProcess());
@@ -40,6 +39,8 @@ LIONode::LIONode() :
     kf.init_dyn_share(get_f, df_dx, df_dw,
         [this](state_ikfom &st, esekfom::dyn_share_datastruct<double> &ekfom_data) { h_share_model(st, ekfom_data); },
         num_max_iterations, epsi);
+
+    pose3D.resize(3);
 }
 
 LIONode::~LIONode() {
@@ -119,11 +120,7 @@ void LIONode::run() {
         kf.update_iterated_dyn_share_modified(_LASER_POINT_COV);
 
         state_point = kf.get_x();
-        vect3 pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
-        geoQuat.x = state_point.rot.coeffs()[0];
-        geoQuat.y = state_point.rot.coeffs()[1];
-        geoQuat.z = state_point.rot.coeffs()[2];
-        geoQuat.w = state_point.rot.coeffs()[3];
+        update3DPose();
 
         bool flg_EKF_inited = (measures.lidar_beg_time - first_lidar_time) < _INIT_TIME ? false : true;
         map_incremental(flg_EKF_inited);
@@ -457,6 +454,28 @@ void LIONode::h_share_model(state_ikfom &st, esekfom::dyn_share_datastruct<doubl
         ekfom_data.h_x.block<1, 12>(i, 0) << norm_p.x, norm_p.y, norm_p.z, VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
         ekfom_data.h(i) = -norm_p.intensity;
     }
+}
+
+void LIONode::update3DPose() {
+    M3D R_W_G(p_imu->get_R_W_G());  // Ground^R_World
+    V3D IMU2DPose(R_W_G*state_point.pos);  // 检查一下，这步转换有必要吗？
+    V3D x(1,0,0);
+    V3D IMU1DPose(R_W_G*state_point.rot*x);
+
+    std::unique_lock<std::mutex> locker(mtx_3DPose, std::defer_lock);
+    locker.lock();
+    pose3D[0] = IMU2DPose(0);
+    pose3D[1] = IMU2DPose(1);
+    pose3D[2] = atan2(IMU1DPose(1),IMU1DPose(0));
+    locker.unlock();
+}
+
+std::vector<double> LIONode::read3DPose() {
+    std::unique_lock<std::mutex> locker(mtx_3DPose, std::defer_lock);
+    locker.lock();
+    std::vector<double> out = pose3D;
+    locker.unlock();
+    return out;
 }
 
 }  // namespace class1_ros_qt_demo

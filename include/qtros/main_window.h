@@ -7,7 +7,6 @@
 #include <opencv2/opencv.hpp>
 
 #include "ui_main_window.h"
-#include "qnode.h"
 #include "lio/qnode_lio.h"
 
 /***CAN***/
@@ -110,6 +109,9 @@ public:
 	MainWindow(int argc, char** argv, QWidget *parent = 0);
 	~MainWindow();
 
+	void ReadSettings();
+	void WriteSettings();
+
     // 关闭窗口时，默认调用
     void closeEvent(QCloseEvent *event);
 
@@ -126,15 +128,20 @@ public Q_SLOTS:
 
 	/***Close-loop control***/
 	void updatePath();
-	void button1_readPath_slot();
+	// path 生成时，考虑的是 wheels-center
+	void button1_genPath_slot();
+    void button1_pathLast_slot();
+    void button1_pathNext_slot();
+	// path 设置时，考虑的是 IMU
+	void button1_setPath_slot();
 	void button1_startTest_slot();
 	void button1_stopTest_slot();
+	void updateLoggingView1();
 
 private:
 	int main_argc;
 	char** main_argv;
 	Ui::MainWindowDesign ui;
-	QNode qnode;
 	LIONode lioNode;
 
 	/***CAN***/
@@ -143,8 +150,12 @@ private:
 	// MotorDriveControl motor_1_drive_control, motor_2_drive_control;
 
 	/***Close-loop control***/
+	cv::Mat drawWCPath();
 	QTimer* timer_path;
-	std::vector<Eigen::Vector2d> pathIn;
+	std::vector<std::vector<Eigen::Vector2d>> wheelsCenter_paths;
+	int pathId;
+	// 实际控制点是 IMU
+	std::vector<Eigen::Vector2d> IMU_path;
 };
 
 }  // namespace class1_ros_qt_demo

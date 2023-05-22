@@ -56,13 +56,13 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
         init_P(21, 21) = init_P(22, 22) = 0.00001;
         kf_state.change_P(init_P);  // 更新协方差矩阵 P_
 
-        // 计算 G^R_W，用于储存地图时，地图能够平行于 ground。
+        // 计算 Ground^R_World，用于储存地图时，地图能够平行于 ground。
         V3D z_ground = mean_acc;
         z_ground = z_ground / z_ground.norm();
-        V3D x_ground = V3D(0.0,1.0,0.0).cross(z_ground);
-        x_ground = x_ground / x_ground.norm();
-        V3D y_ground = z_ground.cross(x_ground);
+        V3D y_ground = z_ground.cross(V3D(1.0,0.0,0.0));  // 先叉 y，保证 x 投影后与 x_ground 平行
         y_ground = y_ground / y_ground.norm();
+        V3D x_ground = y_ground.cross(z_ground);
+        x_ground = x_ground / x_ground.norm();
         R_W_G << x_ground(0), x_ground(1), x_ground(2),
                  y_ground(0), y_ground(1), y_ground(2),
                  z_ground(0), z_ground(1), z_ground(2);

@@ -54,6 +54,9 @@ public:
 	void log( const LogLevel &level, const std::string &msg);
     void exit() {flg_exit = true;};
 
+    /***用于闭环控制的访问接口***/
+    std::vector<double> read3DPose();
+
 Q_SIGNALS:
     void loggingUpdated();  // qt 信号
     void rosShutdown();
@@ -94,7 +97,6 @@ private:
     PointCloudXYZI::Ptr feats_undistort{new PointCloudXYZI()};
     PointCloudXYZI::Ptr pcl_wait_save{new PointCloudXYZI()};
     state_ikfom state_point;
-    geometry_msgs::Quaternion geoQuat;
 
     std::vector<double> extrinT;
     std::vector<double> extrinR;
@@ -114,6 +116,12 @@ private:
     ros::Subscriber sub_pcl;
     ros::Subscriber sub_imu;
     ros::Publisher pubLaserCloudFull;
+
+    /***用于闭环控制的访问接口***/
+    // IMU 坐标系相对于 Ground 坐标系的位姿：x, y, ori
+    void update3DPose();
+    std::mutex mtx_3DPose;
+    std::vector<double> pose3D;
 };
 
 }  // namespace class1_ros_qt_demo
