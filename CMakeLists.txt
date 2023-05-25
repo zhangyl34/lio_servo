@@ -58,6 +58,8 @@ FIND_LIBRARY(IKD_LIBRARIES ikd_Tree HINTS /home/neal/usr/lib)
 FIND_PATH(LOGGER_INCLUDE_DIR NAMES file_logger.h PATHS /home/neal/usr/include/file_logger)
 FIND_LIBRARY(LOGGER_LIBRARIES file_logger HINTS /home/neal/usr/lib)
 
+link_libraries("/home/neal/projects/qt_ros/src/qtros/lib/libcontrolcan.so")
+
 ADD_MESSAGE_FILES(
   FILES
   Pose6D.msg
