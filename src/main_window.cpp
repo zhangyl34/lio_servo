@@ -7,7 +7,7 @@ using namespace Qt;
 MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
 	: QMainWindow(parent), main_argc(argc), main_argv(argv),
     motor_1_drive_control(0x0F), motor_2_drive_control(0x17),
-    cartPara_l(-1000), pathId(-1) {
+	pathId(-1) {
 
     // 设置 .ui 文件
     ui.setupUi(this);
@@ -17,12 +17,11 @@ MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
     ReadSettings();
     // 显示页
     ui.tab_manager->setCurrentIndex(0);
-
     // 更新 log
     ui.listView1->setModel(lioNode.loggingModel());
     QObject::connect(&lioNode, SIGNAL(loggingUpdated()), this, SLOT(updateLoggingView1()));
 
-    // LIO
+    /***LIO***/
     QObject::connect(ui.button2_rosStart, SIGNAL(released()), this, SLOT(startLIO()));
     QObject::connect(ui.button2_rosEnd, SIGNAL(released()), this, SLOT(endLIO()));
 
@@ -36,8 +35,6 @@ MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
 	QObject::connect(update_vel_timer, SIGNAL(timeout()), this, SLOT(refreshUITimerFun()));
 
     /***Close-loop control***/
-    timer_path = new QTimer(this);
-    QObject::connect(timer_path, SIGNAL(timeout()), this, SLOT(updatePath()));
     QObject::connect(ui.button1_genPath, SIGNAL(released()), this, SLOT(button1_genPath_slot()));
     QObject::connect(ui.button1_pathLast, SIGNAL(released()), this, SLOT(button1_pathLast_slot()));
     QObject::connect(ui.button1_pathNext, SIGNAL(released()), this, SLOT(button1_pathNext_slot()));
@@ -47,7 +44,18 @@ MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
 
 	ui.button1_startTest->setEnabled(false);
 	ui.button1_stopTest->setEnabled(false);
+
+	/***cart model***/
+	cartPara.wheelsRadius = 75;
+	cartPara.wheelsDistance = 580;
+	cartPara.l = 100;  // careful
+	cartPara.linVelLim = 40;
+	cartPara.linAccLim = 15;
+	cartPara.angVelLim = 0.1;
+	cartPara.angAccLim = 0.04;
+	cartPara.communFreq = 26.5;  // careful
 }
+
 
 MainWindow::~MainWindow() {
     /***CAN***/
@@ -63,12 +71,16 @@ void MainWindow::ReadSettings() {
     QString endx = settings.value("endx", QString("4500.0")).toString();
     QString endy = settings.value("endy", QString("5500.0")).toString();
     QString endori = settings.value("endori", QString("1.0472")).toString();
+	QString leftv = settings.value("leftv", QString("42")).toString();
+    QString rightv = settings.value("rightv", QString("42")).toString();
     ui.lineEdit1_startx->setText(startx);
     ui.lineEdit1_starty->setText(starty);
     ui.lineEdit1_startori->setText(startori);
     ui.lineEdit1_endx->setText(endx);
     ui.lineEdit1_endy->setText(endy);
     ui.lineEdit1_endori->setText(endori);
+	ui.lineEdit2_1->setText(leftv);
+    ui.lineEdit2_2->setText(leftv);
 }
 
 void MainWindow::WriteSettings() {
@@ -79,6 +91,8 @@ void MainWindow::WriteSettings() {
     settings.setValue("endx",ui.lineEdit1_endx->text());
     settings.setValue("endy",ui.lineEdit1_endy->text());
     settings.setValue("endori",ui.lineEdit1_endori->text());
+	settings.setValue("leftv",ui.lineEdit2_1->text());
+    settings.setValue("rightv",ui.lineEdit2_2->text());
 }
 
 // 关闭窗口时，默认调用
@@ -109,37 +123,19 @@ void MainWindow::button2_w2s_slot() {
 }
 
 void MainWindow::button2_canSend_slot() {
+	update_vel_timer->start(1000);
     motor_1_drive_control.ctrlMotorMoveByVelocity(ui.lineEdit2_1->text().toFloat());
 	motor_2_drive_control.ctrlMotorMoveByVelocity(ui.lineEdit2_2->text().toFloat());
 }
 
 void MainWindow::button2_canStop_slot() {
+	update_vel_timer->stop();
 	motor_1_drive_control.ctrlMotorQuickStop();
 	motor_2_drive_control.ctrlMotorQuickStop();
 }
 
-// 更新电机状态与电机速度
+// 更新电机速度
 void MainWindow::refreshUITimerFun() {
-    QString status;
-
-	MotorStatus motor_status = motor_1_drive_control.currentStatus();
-	for (int i = 0; i < 8; i++) {
-		if (drive_status_list[i].status == motor_status) {
-			status = drive_status_list[i].status_name;
-			break;
-		}
-	}
-	ui.label2_5->setText(status);
-	
-	motor_status = motor_2_drive_control.currentStatus();
-	for (int i = 0; i < 8; i++) {
-		if (drive_status_list[i].status == motor_status) {
-			status = drive_status_list[i].status_name;
-			break;
-		}
-	}
-	ui.label2_11->setText(status);
-
 	ui.label2_7->setText(QString::number(motor_1_drive_control.currentVelocity()));
 	ui.label2_13->setText(QString::number(motor_2_drive_control.currentVelocity()));
 }
@@ -151,6 +147,7 @@ void MainWindow::button1_genPath_slot() {
 	ui.button1_startTest->setEnabled(false);
 	ui.button1_stopTest->setEnabled(false);
 	wheelsCenter_paths.clear();
+	init_oris.clear();
 	IMU_paths.clear();
 	pathId = -1;
 
@@ -170,6 +167,13 @@ void MainWindow::button1_genPath_slot() {
     tarPos[0] = 0;
     tarPos[1] = 0;
     tarPos[2] = tarPosRaw[2];
+
+	// 更新参数
+	init_pos(0) = initPoseRaw[0];
+	init_pos(1) = initPoseRaw[1];
+	tar_pos(0) = tarPosRaw[0];
+	tar_pos(1) = tarPosRaw[1];
+	tar_pos(2) = tarPosRaw[2];
 
 	// y = x^2
 	Eigen::Matrix<double, 2, 3> parabolic(Eigen::Matrix<double, 2, 3>::Zero());
@@ -208,11 +212,15 @@ void MainWindow::button1_genPath_slot() {
 	for (int i=0; i<pointNum; i++) {
 		double z2 = initPose(1) / 2 * (1 + cos(EIGEN_PI * i / (pointNum-1)));
 		wheelsCenter_path.emplace_back(Eigen::Vector2d((z2 - parabolic(0, 2)) * (z2 - parabolic(0, 2)) / 4 / parabolic(0, 0) + parabolic(0, 1) + tarPosRaw[0], z2 + tarPosRaw[1]));
+		// [-pi/2,pi/2]
 		float theta = atan(2 * parabolic(0, 0) / (z2 - parabolic(0, 2)));
-		if (theta > 0) {
-			theta = -CV_PI + theta;
+		if (theta < 0) {
+			theta = -EIGEN_PI + theta;
 		}
-		IMU_path.emplace_back(Eigen::Vector2d((z2 - parabolic(0, 2)) * (z2 - parabolic(0, 2)) / 4 / parabolic(0, 0) + parabolic(0, 1) + tarPosRaw[0] + cartPara_l * cos(theta), z2 + tarPosRaw[1] + cartPara_l * sin(theta)));
+		if (i==0) {
+			init_oris.emplace_back(theta);
+		}
+		IMU_path.emplace_back(Eigen::Vector2d((z2 - parabolic(0, 2)) * (z2 - parabolic(0, 2)) / 4 / parabolic(0, 0) + parabolic(0, 1) + tarPosRaw[0] + cartPara.l * cos(theta), z2 + tarPosRaw[1] + cartPara.l * sin(theta)));
 	}
 	wheelsCenter_paths.emplace_back(wheelsCenter_path);
 	IMU_paths.emplace_back(IMU_path);
@@ -223,10 +231,13 @@ void MainWindow::button1_genPath_slot() {
 		double z1 = initPose(0) / 2 * (1 + cos(EIGEN_PI * i / (pointNum-1)));
 		wheelsCenter_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0], (z1 - parabolic(1, 1)) * (z1 - parabolic(1, 1)) / 4 / parabolic(1, 0) + parabolic(1, 2) + tarPosRaw[1]));
 		float theta = atan((z1 - parabolic(1, 1))/(2 * parabolic(1, 0)));
-		if (theta > 0) {
-			theta = -CV_PI + theta;
+		if (initPose(0) > 0) {
+			theta = -EIGEN_PI + theta;
 		}
-		IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara_l * cos(theta), (z1 - parabolic(1, 1)) * (z1 - parabolic(1, 1)) / 4 / parabolic(1, 0) + parabolic(1, 2) + tarPosRaw[1] + cartPara_l * sin(theta)));
+		if (i==0) {
+			init_oris.emplace_back(theta);
+		}
+		IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.l * cos(theta), (z1 - parabolic(1, 1)) * (z1 - parabolic(1, 1)) / 4 / parabolic(1, 0) + parabolic(1, 2) + tarPosRaw[1] + cartPara.l * sin(theta)));
 	}
 	wheelsCenter_paths.emplace_back(wheelsCenter_path);
 	IMU_paths.emplace_back(IMU_path);
@@ -238,10 +249,13 @@ void MainWindow::button1_genPath_slot() {
 			double z1 = initPose(0) / 2 * (1 + cos(EIGEN_PI * i / (pointNum-1)));
 			wheelsCenter_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0], cubic1(pathId_local, 0) + cubic1(pathId_local, 1) * z1 + cubic1(pathId_local, 2) * z1 * z1 + cubic1(pathId_local, 3) * z1 * z1 * z1 + tarPosRaw[1]));
 			float theta = atan(cubic1(pathId_local, 1) + 2 * z1 * cubic1(pathId_local, 2) + 3 * z1 * z1 * cubic1(pathId_local, 3));
-			if (theta > 0) {
-				theta = -CV_PI + theta;
+			if (initPose(0) > 0) {
+				theta = -EIGEN_PI + theta;
 			}
-			IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara_l * cos(theta), cubic1(pathId_local, 0) + cubic1(pathId_local, 1) * z1 + cubic1(pathId_local, 2) * z1 * z1 + cubic1(pathId_local, 3) * z1 * z1 * z1 + tarPosRaw[1] + cartPara_l * sin(theta)));
+			if (i==0) {
+				init_oris.emplace_back(theta);
+			}
+			IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.l * cos(theta), cubic1(pathId_local, 0) + cubic1(pathId_local, 1) * z1 + cubic1(pathId_local, 2) * z1 * z1 + cubic1(pathId_local, 3) * z1 * z1 * z1 + tarPosRaw[1] + cartPara.l * sin(theta)));
 		}
 		wheelsCenter_paths.emplace_back(wheelsCenter_path);
 		IMU_paths.emplace_back(IMU_path);
@@ -254,9 +268,13 @@ void MainWindow::button1_genPath_slot() {
 			double z2 = initPose(1) / 2 * (1 + cos(EIGEN_PI*i / (pointNum-1)));
 			wheelsCenter_path.emplace_back(Eigen::Vector2d(cubic2(pathId_local, 0) + cubic2(pathId_local, 1) * z2 + cubic2(pathId_local, 2) * z2 * z2 + cubic2(pathId_local, 3) * z2 * z2 * z2 + tarPosRaw[0], z2 + tarPosRaw[1]));	
 			float theta = atan(1/(cubic2(pathId_local, 1) + 2 * z2 * cubic2(pathId_local, 2) + 3 * z2 * z2 * cubic2(pathId_local, 3)));
-			if (theta > 0)
-				theta = -CV_PI + theta;
-			IMU_path.emplace_back(Eigen::Vector2d(cubic2(pathId_local, 0) + cubic2(pathId_local, 1) * z2 + cubic2(pathId_local, 2) * z2 * z2 + cubic2(pathId_local, 3) * z2 * z2 * z2 + tarPosRaw[0] + cartPara_l * cos(theta), z2 + tarPosRaw[1] + cartPara_l * sin(theta)));
+			if (theta < 0) {
+				theta = -EIGEN_PI + theta;
+			}
+			if (i==0) {
+				init_oris.emplace_back(theta);
+			}
+			IMU_path.emplace_back(Eigen::Vector2d(cubic2(pathId_local, 0) + cubic2(pathId_local, 1) * z2 + cubic2(pathId_local, 2) * z2 * z2 + cubic2(pathId_local, 3) * z2 * z2 * z2 + tarPosRaw[0] + cartPara.l * cos(theta), z2 + tarPosRaw[1] + cartPara.l * sin(theta)));
 		}
 		wheelsCenter_paths.emplace_back(wheelsCenter_path);
 		IMU_paths.emplace_back(IMU_path);
@@ -307,17 +325,33 @@ void MainWindow::button1_pathNext_slot() {
 }
 
 cv::Mat MainWindow::drawWCPath() {
-    cv::Scalar color2(17,204,254);
-	cv::Scalar color1(127,104,254);
+    cv::Scalar color1(17,204,254);   // blue: wheels-center
+	cv::Scalar color2(127,104,254);  // purple: IMU
     int halfWidth = 150;
 	int height = 350;
-	cv::Mat pathImg = cv::Mat(cv::Size(halfWidth*2,height), CV_8UC3, cv::Scalar(241,240,237));  //255,254,249
+	cv::Mat pathImg = cv::Mat(cv::Size(halfWidth*2,height), CV_8UC3, cv::Scalar(241,240,237));
     if (pathId<0 || pathId>=wheelsCenter_paths.size()) {
 		return pathImg;
 	}
 	for (int i=0; i<wheelsCenter_paths[pathId].size(); i++) {
-        cv::circle(pathImg, cv::Point(wheelsCenter_paths[pathId].at(i)[0] / 20.0, wheelsCenter_paths[pathId].at(i)[1] / 20.0), 2, color2, -1);
-		cv::circle(pathImg, cv::Point(IMU_paths[pathId].at(i)[0] / 20.0, IMU_paths[pathId].at(i)[1] / 20.0), 2, color1, -1);
+        cv::circle(pathImg, cv::Point(wheelsCenter_paths[pathId].at(i)[0] / 20.0, wheelsCenter_paths[pathId].at(i)[1] / 20.0), 2, color1, -1);
+		cv::circle(pathImg, cv::Point(IMU_paths[pathId].at(i)[0] / 20.0, IMU_paths[pathId].at(i)[1] / 20.0), 2, color2, -1);
+	}
+    return pathImg;
+}
+
+cv::Mat MainWindow::drawIMUPath() {
+	cv::Scalar color2(127,104,254);  // purple: simulation IMU path
+	cv::Scalar color3(127,204,54);   // green: simulation wheels-center path
+    int halfWidth = 150;
+	int height = 350;
+	cv::Mat pathImg = cv::Mat(cv::Size(halfWidth*2,height), CV_8UC3, cv::Scalar(241,240,237));
+    if (pathId<0 || pathId>=wheelsCenter_paths.size()) {
+		return pathImg;
+	}
+	for (int i=0; i<IMU_simulationPath.size(); i++) {
+		cv::circle(pathImg, cv::Point(IMU_simulationPath.at(i)[0] / 20.0, IMU_simulationPath.at(i)[1] / 20.0), 2, color2, -1);
+		cv::circle(pathImg, cv::Point(wheelsCenter_simulationPath.at(i)[0] / 20.0, wheelsCenter_simulationPath.at(i)[1] / 20.0), 2, color3, -1);
 	}
     return pathImg;
 }
@@ -332,188 +366,239 @@ void MainWindow::button1_setPath_slot() {
     sprintf(buffer, "Selected ID: %d", pathId);
     ui.label1_10->setText(buffer);
 
-    // 生成 IMU path 的 20 个控制点
+    // 生成 IMU path 的 21 个控制点
 	IMU_controlPoint.clear();
+	for (int i=0; i<21; i++) {
+		IMU_controlPoint.emplace_back(IMU_paths[pathId].at(i*5));
+	}
 
 	// 生成 IMU path 的仿真轨迹
 	IMU_simulationPath.clear();
+	wheelsCenter_simulationPath.clear();
+	/*parameter 0.05 needs to be adjusted.*/
+	double disThresh = 10;  // 10mm
+	int cpid = 1;           // control point id (1-20).
+	Eigen::Vector2d tarPosi(IMU_controlPoint.at(cpid)(0), IMU_controlPoint.at(cpid)(1));
+	Eigen::Vector3d cartPosi;
+	cartPosi << IMU_paths[pathId][0](0), IMU_paths[pathId][0](1), init_oris[pathId];
+	Eigen::Vector2d cartVeli(Eigen::Vector2d::Zero());
+	Eigen::Vector2d middleVeli(Eigen::Vector2d::Zero());
+	Eigen::Vector2d wheelsVeli(Eigen::Vector2d::Zero());
+	Eigen::Vector3d cartVel3i(Eigen::Vector3d::Zero());
+	int iterNum = 0;
+	while ((sqrt(pow(cartPosi(0) - IMU_controlPoint.back()(0), 2) + pow(cartPosi(1) - IMU_controlPoint.back()(1), 2)) > disThresh) && iterNum < 10000) {
+		iterNum++;
+		double disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
+		// 更新 control point
+		if (cpid < (IMU_controlPoint.size()-1)) {  // cpid<20
+			double preErr = sqrt(pow(cartPosi(0) - IMU_controlPoint.at(cpid - 1)(0), 2) + pow(cartPosi(1) - IMU_controlPoint.at(cpid - 1)(1), 2));
+			/*parameter 0.5 needs to be adjusted.*/
+			if (disErr < preErr) {  // update tarPosi when get close to the previous one.
+				cpid++;
+				tarPosi = IMU_controlPoint.at(cpid);  // update tarPosi.
+				disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
+			}
+		}
 
-	// 绘图
+		// compute next position and orientatio
+		cartVel3i = fromWheelsVel2CartVel3(cartPosi, wheelsVeli);
+		Eigen::Vector3d cartPosNi;
+		cartPosNi << cartVel3i(0) / cartPara.communFreq + cartPosi(0),
+			cartVel3i(1) / cartPara.communFreq + cartPosi(1),
+			cartVel3i(2) / cartPara.communFreq + cartPosi(2);
+		cartPosi = cartPosNi;
+
+		// compute next velocity.
+		/* k1=k2=1*/
+		double xm_dot = (tarPosi(0) - cartPosi(0));
+		double ym_dot = (tarPosi(1) - cartPosi(1));
+		double m_dot = sqrt(pow(xm_dot, 2) + pow(ym_dot, 2));
+		double threshold = sqrt(pow(cartPara.linVelLim, 2) + pow(cartPara.l * cartPara.angVelLim, 2));
+		if (m_dot > threshold) {
+			xm_dot = xm_dot / m_dot * threshold;
+			ym_dot = ym_dot / m_dot * threshold;
+		}
+		Eigen::Vector2d middleVelNi = fromCartVel2MiddleVel2(xm_dot, ym_dot, cartPosi(2));
+		middleVelNi(0) = cartPara.linVelLim * tanh(middleVelNi(0) / 10.0);
+		middleVelNi(1) = cartPara.angVelLim * tanh(middleVelNi(1) * 5.0);
+
+		if ((middleVelNi(0) - middleVeli(0)) * cartPara.communFreq > cartPara.linAccLim)  // v_dot
+			middleVelNi(0) = middleVeli(0) + cartPara.linAccLim / cartPara.communFreq;
+		else if ((middleVelNi(0) - middleVeli(0)) * cartPara.communFreq < -cartPara.linAccLim)
+			middleVelNi(0) = middleVeli(0) - cartPara.linAccLim / cartPara.communFreq;
+		if ((middleVelNi(1) - middleVeli(1)) * cartPara.communFreq > cartPara.angAccLim)  // w_dot
+			middleVelNi(1) = middleVeli(1) + cartPara.angAccLim / cartPara.communFreq;
+		else if ((middleVelNi(1) - middleVeli(1)) * cartPara.communFreq < -cartPara.angAccLim)
+			middleVelNi(1) = middleVeli(1) - cartPara.angAccLim / cartPara.communFreq;
+		middleVeli = middleVelNi;
+		wheelsVeli = fromMiddleVel2WheelsVel2(middleVeli);  // vR, vL
+
+		IMU_simulationPath.emplace_back(Eigen::Vector2d(cartPosi(0), cartPosi(1)));
+		wheelsCenter_simulationPath.emplace_back(Eigen::Vector2d(cartPosi(0) - cartPara.l * cos(cartPosi(2)), cartPosi(1) - cartPara.l * sin(cartPosi(2))));
+	}
+
+	// 绘制两条 IMU 轨迹
+    cv::Mat imgPath = drawIMUPath();
+	QImage srcQImage = QImage((uchar*)(imgPath.data), imgPath.cols, imgPath.rows, imgPath.step, QImage::Format_RGB888);
+	ui.label1_3->setPixmap(QPixmap::fromImage(srcQImage));
+	ui.label1_3->show();
+
+    // 显示角度误差
+	float ori_err = tar_pos(2) - cartPosi(2);
+	while (ori_err > EIGEN_PI) {
+		ori_err -= 2*EIGEN_PI;
+	}
+	while (ori_err < -EIGEN_PI) {
+		ori_err += 2*EIGEN_PI;
+	}
+    sprintf(buffer, "Ori error: %0.1f deg", static_cast<double>(ori_err * 180.0 / EIGEN_PI));
+    ui.label1_11->setText(buffer);
 
 }
 
 void MainWindow::button1_startTest_slot() {
-    // 1000ms 更新一次 label1_3
-	timer_path->start(1000);
+
 	// 开启 lio 节点
     lioNode.init(main_argc, main_argv);
+	sleep(3);  // 3s
 
-    // Eigen::Vector3d log_tarPos = mC.getTarPos();
-	// neal::logger(LOG_INFO_, "target: " + std::to_string(log_tarPos[0]) + ' ' + std::to_string(log_tarPos[1]) + ' ' + std::to_string(log_tarPos[2]));
-	// Eigen::Vector4d log_motionPlane = mC.getTrolleyPlane();
+	// 记录参数
+	neal::logger(neal::LOG_INFO, "initial: " + std::to_string(init_pos(0)) +
+		' ' + std::to_string(init_pos(1)) + ' ' + std::to_string(init_oris[pathId]));
+	neal::logger(neal::LOG_INFO, "target: " + std::to_string(tar_pos(0)) +
+		' ' + std::to_string(tar_pos(1)) + ' ' + std::to_string(tar_pos(2)));
+	Eigen::Matrix3d R_W_G = lioNode.readRWG();
+	neal::logger(neal::LOG_INFO, "G_R_W: " + std::to_string(R_W_G(0,0)) + ' ' + std::to_string(R_W_G(0,1)) +
+		' ' + std::to_string(R_W_G(0,2)) + ' ' + std::to_string(R_W_G(1,0)) + ' ' + std::to_string(R_W_G(1,1)) +
+		' ' + std::to_string(R_W_G(1,2)) + ' ' + std::to_string(R_W_G(2,0)) + ' ' + std::to_string(R_W_G(2,1)) +
+		' ' + std::to_string(R_W_G(2,2)));
 
-	// /***control loop***/
-	// std::vector<Eigen::Vector2d> pathRaw = mC.getRoadSign();
-	// double disThresh = 10;  // 10 mm
-	// int dpSign = 1;  // desiredPath sign post (from 0-19).
-	// Eigen::Vector2d tarPosi(pathRaw.at(dpSign)[0], pathRaw.at(dpSign)[1]);
-	// Eigen::Vector3d cartPosi(mC.getCartCurrPos());  // cart registered inital pose.
-	// pose3d cartPosRaw;  // path logger.
-	// Eigen::Vector2d cartVeli(Eigen::Vector2d::Zero());
-	// Eigen::Vector2d middleVeli(Eigen::Vector2d::Zero());
-	// Eigen::Vector2d wheelsVeli(Eigen::Vector2d::Zero());
-	// Eigen::Vector3d cartVel3i(Eigen::Vector3d::Zero());
-	// bool trackSuccess = false;  // marker tracker.
-	// cv::Mat imgCaptured;
-	// int failCount = 0;
-	// float costThreshold = 5.0;
-	// // while doesn't reach the target position.
-	// while (pow(cartPosi(0) - pathRaw.at(pathRaw.size() - 1)[0], 2) + pow(cartPosi(1) - pathRaw.at(pathRaw.size() - 1)[1], 2) > disThresh * disThresh) {
-	// 	// track another capturedImg and update cartPosi.
-	// 	trackSuccess = monitor.estimatePose(imgCaptured, costThreshold);  // search in the ROI.
-	// 	failCount = 0;
-	// 	while (!trackSuccess && failCount < 10) {  // try 10 times.
-	// 		failCount++;
-	// 		std::cout << "trackNextCaptured failed!" << std::endl;
-	// 		trackSuccess = monitor.estimatePose(imgCaptured, costThreshold, true);  // search in the whole image.
-	// 	}
-	// 	if (!trackSuccess) {
-	// 		break;
-	// 	}
-	// 	// update focal voltage.
-	// 	float currentBestFV = monitor.fromDistance2FV();
-	// 	currentBestFV = caspian->setFocusVoltage(currentBestFV);
-	// 	char buff[8];
-	// 	sprintf(buff, "%0.1f", currentBestFV);
-	// 	ui.lineEdit_focalVol->setText(buff);
-	
-	// 	cartPosRaw = monitor.getPose();  // dim = 6.
-	// 	mC.updateCartCurrPos(cartPosRaw);  // used for imgshow.
-	// 	cartPosi = mC.getCartCurrPos();  // dim = 3.
-	// 	neal::logger(LOG_INFO_, "cart_pose_raw: " + std::to_string(cartPosRaw.tvec[0]) + ' ' + std::to_string(cartPosRaw.tvec[1]) + ' '	+ std::to_string(cartPosRaw.tvec[2]) + 
-	// 		' ' + std::to_string(cartPosRaw.rvec[0]) + ' ' + std::to_string(cartPosRaw.rvec[1]) + ' ' + std::to_string(cartPosRaw.rvec[2]));
-	// 	neal::logger(LOG_INFO_, "cart_pose: " + std::to_string(cartPosi[0]) + ' ' + std::to_string(cartPosi[1]) + ' ' + std::to_string(cartPosi[2]));
+	double disThresh = 10;  // 10mm
+	int cpid = 1;           // control point id (1-20).
+	Eigen::Vector2d tarPosi(IMU_controlPoint.at(cpid)(0), IMU_controlPoint.at(cpid)(1));
+	Eigen::Vector3d cartPosi(fromGPose2CPose(lioNode.read3DPose()));
+	Eigen::Vector2d cartVeli(Eigen::Vector2d::Zero());
+	Eigen::Vector2d middleVeli(Eigen::Vector2d::Zero());
+	Eigen::Vector2d wheelsVeli(Eigen::Vector2d::Zero());
+	Eigen::Vector3d cartVel3i(Eigen::Vector3d::Zero());
+	while (pow(cartPosi(0) - IMU_controlPoint.back()(0), 2) + pow(cartPosi(1) - IMU_controlPoint.back()(1), 2) > disThresh * disThresh) {
+		double disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
+		// 更新 control point
+		if (cpid < (IMU_controlPoint.size()-1)) {  // cpid<20
+			double preErr = sqrt(pow(cartPosi(0) - IMU_controlPoint.at(cpid - 1)(0), 2) + pow(cartPosi(1) - IMU_controlPoint.at(cpid - 1)(1), 2));
+			/*parameter 0.5 needs to be adjusted.*/
+			if (disErr < preErr) {  // update tarPosi when get close to the previous one.
+				cpid++;
+				tarPosi = IMU_controlPoint.at(cpid);  // update tarPosi.
+				disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
+			}
+		}
 
-	// 	// update tarPosi when get close to the previous one.
-	// 	double disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
-	// 	if (dpSign < (static_cast<int>(pathRaw.size()) - 1)) {  // < 19
-	// 		double preErr = sqrt(pow(cartPosi(0) - pathRaw.at(dpSign - 1)[0], 2) + pow(cartPosi(1) - pathRaw.at(dpSign - 1)[1], 2));
-	// 		/*parameter 0.5 needs to be adjusted.*/
-	// 		if (preErr > disErr)
-	// 		{
-	// 			//roadSign.emplace_back(Eigen::Vector2d(cartPosi(0), cartPosi(1)));
-	// 			dpSign++;
-	// 			tarPosi = pathRaw.at(dpSign);  // update tarPosi.
-	// 			disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
-	// 			//std::cout << cartPosi(0) << cartPosi(1) << std::endl;
-	// 		}
-	// 	}
+		std::vector<double> cartPosei_raw = lioNode.read7DPose();
+		cartPosi = fromGPose2CPose(lioNode.read3DPose());
+		// Global 坐标系下，IMU 位置 + 四元数
+		neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(cartPosei_raw[0]) + ' ' + std::to_string(cartPosei_raw[1]) + ' ' + std::to_string(cartPosei_raw[2]) + 
+			' ' + std::to_string(cartPosei_raw[3]) + ' ' + std::to_string(cartPosei_raw[4]) + ' ' + std::to_string(cartPosei_raw[5]) + ' ' + std::to_string(cartPosei_raw[6]));
+		// control 坐标系下，x y ori
+		neal::logger(neal::LOG_INFO, "IMU3D_pose: " + std::to_string(cartPosi[0]) + ' ' + std::to_string(cartPosi[1]) + ' ' + std::to_string(cartPosi[2]));
 
-	// 	// compute next velocity.
-	// 	if (cartPara.l == 0) {  // p control.
-	// 		/* kp=1*/
-	// 		double angErr = atan2(tarPosi(1) - cartPosi(1), tarPosi(0) - cartPosi(0)) - cartPosi(2);
-	// 		if (angErr > EIGEN_PI) {
-	// 			angErr -= 2 * EIGEN_PI;
-	// 		}
-	// 		else if (angErr < -EIGEN_PI) {
-	// 			angErr += 2 * EIGEN_PI;
-	// 		}
-	// 		Eigen::Vector2d cartVelNi((std::min)({ disErr, cartPara.linVelLim }),
-	// 			fabs(angErr) > cartPara.angVelLim ? cartPara.angVelLim * angErr / fabs(angErr) : angErr);
-	// 		if ((cartVelNi(0) - cartVeli(0)) * cartPara.communFreq > cartPara.linAccLim)  // v_dot
-	// 			cartVelNi(0) = cartVeli(0) + cartPara.linAccLim / cartPara.communFreq;
-	// 		else if ((cartVelNi(0) - cartVeli(0)) * cartPara.communFreq < -cartPara.linAccLim)
-	// 			cartVelNi(0) = cartVeli(0) - cartPara.linAccLim / cartPara.communFreq;
-	// 		if ((cartVelNi(1) - cartVeli(1)) * cartPara.communFreq > cartPara.angAccLim)  // w_dot
-	// 			cartVelNi(1) = cartVeli(1) + cartPara.angAccLim / cartPara.communFreq;
-	// 		else if ((cartVelNi(1) - cartVeli(1)) * cartPara.communFreq < -cartPara.angAccLim)
-	// 			cartVelNi(1) = cartVeli(1) - cartPara.angAccLim / cartPara.communFreq;
-	// 		cartVeli = cartVelNi;
-	// 		wheelsVeli = mC.fromMiddleVel2WheelsVel2(cartVeli);  // vR, vL
-	// 	}
-	// 	else {  // cart coordinate coincide with the marker coordinate.
-	// 		/* k1=k2=1*/
-	// 		double xm_dot = (tarPosi(0) - cartPosi(0));
-	// 		double ym_dot = (tarPosi(1) - cartPosi(1));
-	// 		double m_dot = sqrt(pow(xm_dot, 2) + pow(ym_dot, 2));
-	// 		double threshold = sqrt(pow(cartPara.linVelLim, 2) + pow(cartPara.l * cartPara.angVelLim, 2));
-	// 		if (m_dot > threshold) {
-	// 			xm_dot = xm_dot / m_dot * threshold;
-	// 			ym_dot = ym_dot / m_dot * threshold;
-	// 		}
-	// 		Eigen::Vector2d middleVelNi = mC.fromCartVel2MiddleVel2(xm_dot, ym_dot, cartPosi(2));
-	// 		middleVelNi(0) = cartPara.linVelLim * tanh(middleVelNi(0)/10.0);
-	// 		middleVelNi(1) = cartPara.angVelLim * tanh(middleVelNi(1)*5.0);
+		// compute next velocity.
+		/* k1=k2=1*/
+		double xm_dot = (tarPosi(0) - cartPosi(0));
+		double ym_dot = (tarPosi(1) - cartPosi(1));
+		double m_dot = sqrt(pow(xm_dot, 2) + pow(ym_dot, 2));
+		double threshold = sqrt(pow(cartPara.linVelLim, 2) + pow(cartPara.l * cartPara.angVelLim, 2));
+		if (m_dot > threshold) {
+			xm_dot = xm_dot / m_dot * threshold;
+			ym_dot = ym_dot / m_dot * threshold;
+		}
+		Eigen::Vector2d middleVelNi = fromCartVel2MiddleVel2(xm_dot, ym_dot, cartPosi(2));
+		middleVelNi(0) = cartPara.linVelLim * tanh(middleVelNi(0)/10.0);
+		middleVelNi(1) = cartPara.angVelLim * tanh(middleVelNi(1)*5.0);
 
-	// 		if ((middleVelNi(0) - middleVeli(0)) * cartPara.communFreq > cartPara.linAccLim)  // v_dot
-	// 			middleVelNi(0) = middleVeli(0) + cartPara.linAccLim / cartPara.communFreq;
-	// 		else if ((middleVelNi(0) - middleVeli(0)) * cartPara.communFreq < -cartPara.linAccLim)
-	// 			middleVelNi(0) = middleVeli(0) - cartPara.linAccLim / cartPara.communFreq;
-	// 		if ((middleVelNi(1) - middleVeli(1)) * cartPara.communFreq > cartPara.angAccLim)  // w_dot
-	// 			middleVelNi(1) = middleVeli(1) + cartPara.angAccLim / cartPara.communFreq;
-	// 		else if ((middleVelNi(1) - middleVeli(1)) * cartPara.communFreq < -cartPara.angAccLim)
-	// 			middleVelNi(1) = middleVeli(1) - cartPara.angAccLim / cartPara.communFreq;
-	// 		middleVeli = middleVelNi;
-	// 		wheelsVeli = mC.fromMiddleVel2WheelsVel2(middleVeli);  // vR, vL
-	// 	}
+		if ((middleVelNi(0) - middleVeli(0)) * cartPara.communFreq > cartPara.linAccLim)  // v_dot
+			middleVelNi(0) = middleVeli(0) + cartPara.linAccLim / cartPara.communFreq;
+		else if ((middleVelNi(0) - middleVeli(0)) * cartPara.communFreq < -cartPara.linAccLim)
+			middleVelNi(0) = middleVeli(0) - cartPara.linAccLim / cartPara.communFreq;
+		if ((middleVelNi(1) - middleVeli(1)) * cartPara.communFreq > cartPara.angAccLim)  // w_dot
+			middleVelNi(1) = middleVeli(1) + cartPara.angAccLim / cartPara.communFreq;
+		else if ((middleVelNi(1) - middleVeli(1)) * cartPara.communFreq < -cartPara.angAccLim)
+			middleVelNi(1) = middleVeli(1) - cartPara.angAccLim / cartPara.communFreq;
+		middleVeli = middleVelNi;
+		wheelsVeli = fromMiddleVel2WheelsVel2(middleVeli);  // vR, vL
 
-	// 	// refresh Qt widget
-	// 	//cv::Mat img_temp;  // update label_imgFlow
-	// 	//float resizeScale = (std::min)({ 270.0 / imgCaptured.cols, 210.0 / imgCaptured.rows });
-	// 	//cv::resize(imgCaptured, img_temp, cv::Size(), resizeScale, resizeScale);
-	// 	//QImage srcQImage = QImage((uchar*)(img_temp.data), img_temp.cols, img_temp.rows, img_temp.step, QImage::Format_RGB888);
-	// 	//ui.label_imgCap->setPixmap(QPixmap::fromImage(srcQImage));
-	// 	//ui.label_imgCap->resize(srcQImage.size());
-	// 	//ui.label_imgCap->show();
+		// send wheelsVeli
+		float motor1_speed = wheelsVeli.y() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);  // rpm
+		float motor2_speed = wheelsVeli.x() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);
+		if (fabs(motor1_speed) > 40 || fabs(motor2_speed) > 40) {  // if motor speed too high.
+			neal::logger(neal::LOG_ERROR, "motor1_speed: " + std::to_string(motor1_speed));
+			neal::logger(neal::LOG_ERROR, "motor2_speed: " + std::to_string(motor2_speed));
+			break;
+		}
 
-	// 	// send wheelsVeli
-	// 	float motor1_speed = wheelsVeli.x() * 60.0 / (2.0 * CV_PI * cartPara.wheelsRadius);  // rpm
-	// 	float motor2_speed = wheelsVeli.y() * 60.0 / (2.0 * CV_PI * cartPara.wheelsRadius);
-	// 	if (fabs(motor1_speed) > 100 || fabs(motor2_speed) > 100) {  // if motor speed too high.
-	// 		neal::logger(LOG_ERROR, "motor1_speed: " + std::to_string(motor1_speed));
-	// 		neal::logger(LOG_ERROR, "motor2_speed: " + std::to_string(motor2_speed));
-	// 		break;
-	// 	}
+		neal::logger(neal::LOG_INFO, "motor1_speed: " + std::to_string(motor1_speed));
+		neal::logger(neal::LOG_INFO, "motor2_speed: " + std::to_string(motor2_speed));
+		motor_1_drive_control.ctrlMotorMoveByVelocity(motor1_speed);  // vL, rpm
+		motor_2_drive_control.ctrlMotorMoveByVelocity(motor2_speed);  // vR
+	}
 
-	// 	neal::logger(LOG_INFO_, "motor1_speed: " + std::to_string(motor1_speed));
-	// 	neal::logger(LOG_INFO_, "motor2_speed: " + std::to_string(motor2_speed));
-	// 	motor_1_drive_control.ctrlMotorMoveByVelocity(motor1_speed);  // x = vR, form rpm to count/ms
-	// 	motor_2_drive_control.ctrlMotorMoveByVelocity(motor2_speed);  // y = vL
-	//  }
-
-	//  // stop test.
-	// motor_1_drive_control.ctrlMotorQuickStop();
-	// motor_2_drive_control.ctrlMotorQuickStop();
-	// neal::logger(LOG_INFO_, "motor1_speed: " + std::to_string(0.0));
-	// neal::logger(LOG_INFO_, "motor2_speed: " + std::to_string(0.0));
+	// stop test.
+	motor_1_drive_control.ctrlMotorQuickStop();
+	motor_2_drive_control.ctrlMotorQuickStop();
 
 }
 
 void MainWindow::button1_stopTest_slot() {
-    timer_path->stop();
-    lioNode.exit();
+    // 此时界面应该已经卡死了
+	lioNode.exit();
 
     /***CAN***/
-    // motor_1_drive_control.ctrlMotorQuickStop();
-	// motor_2_drive_control.ctrlMotorQuickStop();
+    motor_1_drive_control.ctrlMotorQuickStop();
+	motor_2_drive_control.ctrlMotorQuickStop();
 }
 
 void MainWindow::updateLoggingView1() {
     ui.listView1->scrollToBottom();
 }
 
-// 更新频率低一点
-void MainWindow::updatePath() {
-	// video_frame = GxCamera->getImgFlow();
-	// cv::Mat img_temp;
-	// cv::resize(video_frame, img_temp, cv::Size(), 0.2, 0.2);
-	// //cv::imshow("frame", img_temp);
-	// //cv::waitKey(1);
-	// QImage srcQImage = QImage((uchar*)(img_temp.data), img_temp.cols, img_temp.rows, img_temp.step, QImage::Format_Grayscale8);
-	// ui.label_imgFlow->setPixmap(QPixmap::fromImage(srcQImage));
-	// ui.label_imgFlow->resize(srcQImage.size());
-	// ui.label_imgFlow->show();
+/***cart model***/
+Eigen::Vector3d MainWindow::fromWheelsVel2CartVel3(
+	const Eigen::Vector3d& cartCurrPosIn, const Eigen::Vector2d& wheelsVelIn) const {
+	
+	Eigen::Vector3d cartVel3;  // (xDot, yDot, thetaDot).
+	double v = (wheelsVelIn(0) + wheelsVelIn(1)) / 2;
+	double w = (wheelsVelIn(0) - wheelsVelIn(1)) / cartPara.wheelsDistance;
+	cartVel3 << cos(cartCurrPosIn(2)) * v - cartPara.l * sin(cartCurrPosIn(2)) * w,
+		sin(cartCurrPosIn(2)) * v + cartPara.l * cos(cartCurrPosIn(2)) * w,
+		w;
+	return cartVel3;
+}
+
+Eigen::Vector2d MainWindow::fromCartVel2MiddleVel2(
+	const double& xl_dot, const double& yl_dot, const double& theta) const {
+
+	Eigen::Vector2d middleCurrVel;  // (v, w)
+	middleCurrVel << cos(theta) * xl_dot + sin(theta) * yl_dot,
+		-sin(theta) / cartPara.l * xl_dot + cos(theta) / cartPara.l * yl_dot;
+	return middleCurrVel;
+}
+
+Eigen::Vector2d MainWindow::fromMiddleVel2WheelsVel2(
+	const Eigen::Vector2d& cartCurrVelIn) const {
+
+	Eigen::Vector2d wheelsVelOut; // (vR, vL).
+	wheelsVelOut << cartCurrVelIn(0) + cartCurrVelIn(1)*cartPara.wheelsDistance / 2,
+		cartCurrVelIn(0) - cartCurrVelIn(1)*cartPara.wheelsDistance / 2;
+	return wheelsVelOut;
+}
+
+Eigen::Vector3d MainWindow::fromGPose2CPose(
+	const std::vector<double>& GPose) const {
+
+	Eigen::Vector3d CPose(init_pos(0)+GPose[0]*cos(init_oris[pathId])+GPose[1]*sin(init_oris[pathId]),
+						  init_pos(1)+GPose[0]*sin(init_oris[pathId])-GPose[1]*cos(init_oris[pathId]),
+						  init_pos(2)-GPose[2]);
+	return CPose;
 }
 
 }  // namespace class1_ros_qt_demo

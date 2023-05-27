@@ -12,7 +12,8 @@ typedef struct {
 } CanMessageStr;
 
 class CanDeviceComm : public QThread {
-    Q_OBJECT
+Q_OBJECT
+
 public:
     CanDeviceComm();
     ~CanDeviceComm();

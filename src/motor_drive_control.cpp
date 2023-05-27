@@ -194,7 +194,6 @@ void MotorDriveControl::sendTargetVelocity(F32 velocity)
 	//FILE_LOG("send val:0x%x, 0x%x, 0x%x, 0x%x\n", send_data[0], send_data[1], send_data[2], send_data[3]);
 	writeOD(send_polarity, 1, 0x607E, 0);
 	bool rc2 = writeOD(send_data, 4, 0x60FF, 0);
-	//neal::logger(LOG_WARN, "sendTargetVelocity: " + std::to_string(rc1)+ " "+std::to_string(rc2));
 }
 
 void MotorDriveControl::sendGetCurVelocity() {

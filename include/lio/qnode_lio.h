@@ -13,6 +13,7 @@
 #include <deque>
 #include <mutex>
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <condition_variable>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/ply_io.h>
@@ -56,6 +57,8 @@ public:
 
     /***用于闭环控制的访问接口***/
     std::vector<double> read3DPose();
+    std::vector<double> read7DPose();
+    M3D readRWG() const {return p_imu->get_R_W_G();};
 
 Q_SIGNALS:
     void loggingUpdated();  // qt 信号
@@ -118,10 +121,12 @@ private:
     ros::Publisher pubLaserCloudFull;
 
     /***用于闭环控制的访问接口***/
-    // IMU 坐标系相对于 Ground 坐标系的位姿：x, y, ori
-    void update3DPose();
+    // IMU 坐标系相对于 Ground 坐标系的位姿：G^xt, G^yt, G^orit
+    void updatePose();
     std::mutex mtx_3DPose;
     std::vector<double> pose3D;
+    std::mutex mtx_7DPose;
+    std::vector<double> pose7D;
 };
 
 }  // namespace class1_ros_qt_demo

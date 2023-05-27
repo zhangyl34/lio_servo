@@ -107,12 +107,6 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
     {
         auto &imuSecond = *(v_imu.begin() + 1);
         if (imuSecond->header.stamp.toSec() < meas.lidar_beg_time) {
-
-            // std::string strout;
-            // strout = "situation 1 occur! v_imu time stamp: " + std::to_string((*v_imu.begin())->header.stamp.toSec())
-            //     + "; " + std::to_string((*(v_imu.begin()+1))->header.stamp.toSec()) +
-            //     + "; " + std::to_string((*(v_imu.begin()+2))->header.stamp.toSec());
-            // neal::logger(neal::LOG_TEST, strout);
             v_imu.pop_front();
         }
     }
@@ -133,10 +127,6 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
 
         // 如果 head 时刻早于这一包雷达开始时刻，第一次
         if (head->header.stamp.toSec() < meas.lidar_beg_time) {
-            // std::string strout;
-            // strout = "lastlidar end time: " + std::to_string(last_lidar_end_time_)
-            //     + "; lidar beg time: " + std::to_string(meas.lidar_beg_time);
-            // neal::logger(neal::LOG_INFO, strout);
             // 从上次雷达结束时刻开始传播
             dt = tail->header.stamp.toSec() - last_lidar_end_time_;
         }

@@ -41,6 +41,7 @@ LIONode::LIONode() :
         num_max_iterations, epsi);
 
     pose3D.resize(3);
+    pose7D.resize(7);
 }
 
 LIONode::~LIONode() {
@@ -120,7 +121,7 @@ void LIONode::run() {
         kf.update_iterated_dyn_share_modified(_LASER_POINT_COV);
 
         state_point = kf.get_x();
-        update3DPose();
+        updatePose();
 
         bool flg_EKF_inited = (measures.lidar_beg_time - first_lidar_time) < _INIT_TIME ? false : true;
         map_incremental(flg_EKF_inited);
@@ -456,24 +457,44 @@ void LIONode::h_share_model(state_ikfom &st, esekfom::dyn_share_datastruct<doubl
     }
 }
 
-void LIONode::update3DPose() {
+void LIONode::updatePose() {
     M3D R_W_G(p_imu->get_R_W_G());  // Ground^R_World
-    V3D IMU2DPose(R_W_G*state_point.pos);  // 检查一下，这步转换有必要吗？
-    V3D x(1,0,0);
-    V3D IMU1DPose(R_W_G*state_point.rot*x);
+    V3D IMU2DPose(R_W_G*state_point.pos);
+    M3D R_IMU_G(R_W_G*state_point.rot);    // Ground^R_IMU
+    Eigen::Quaterniond q = Eigen::Quaterniond(R_IMU_G);
+    // Eigen::Matrix3d mat = q.normalized().toRotationMatrix();
 
-    std::unique_lock<std::mutex> locker(mtx_3DPose, std::defer_lock);
-    locker.lock();
+    std::unique_lock<std::mutex> locker1(mtx_3DPose, std::defer_lock);
+    locker1.lock();
     pose3D[0] = IMU2DPose(0);
     pose3D[1] = IMU2DPose(1);
-    pose3D[2] = atan2(IMU1DPose(1),IMU1DPose(0));
-    locker.unlock();
+    pose3D[2] = atan2(R_IMU_G(1,0),R_IMU_G(0,0));
+    locker1.unlock();
+
+    std::unique_lock<std::mutex> locker2(mtx_7DPose, std::defer_lock);
+    locker2.lock();
+    pose7D[0] = IMU2DPose(0);
+    pose7D[1] = IMU2DPose(1);
+    pose7D[2] = IMU2DPose(2);
+    pose7D[3] = q.x();
+    pose7D[4] = q.y();
+    pose7D[5] = q.z();
+    pose7D[6] = q.w();
+    locker2.unlock();
 }
 
 std::vector<double> LIONode::read3DPose() {
     std::unique_lock<std::mutex> locker(mtx_3DPose, std::defer_lock);
     locker.lock();
     std::vector<double> out = pose3D;
+    locker.unlock();
+    return out;
+}
+
+std::vector<double> LIONode::read7DPose() {
+    std::unique_lock<std::mutex> locker(mtx_7DPose, std::defer_lock);
+    locker.lock();
+    std::vector<double> out = pose7D;
     locker.unlock();
     return out;
 }
