@@ -43,7 +43,7 @@ public:
 	bool init(int argc, char** argv);
 	void run();
 
-    /* 用于打 log*/
+    /* 用于在 Qt 界面打 log*/
 	enum LogLevel {
         Debug,
         Info,

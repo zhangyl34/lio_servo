@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1080</width>
-    <height>661</height>
+    <height>692</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -87,41 +87,8 @@
               <string>ControlGroup</string>
              </property>
              <layout class="QGridLayout" name="gridLayout">
-              <item row="19" column="4">
-               <widget class="QLineEdit" name="lineEdit1_endy">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-               </widget>
-              </item>
-              <item row="9" column="2">
-               <widget class="QPushButton" name="button1_setPath">
-                <property name="text">
-                 <string>Set</string>
-                </property>
-               </widget>
-              </item>
-              <item row="16" column="4">
-               <widget class="QLabel" name="label1_5">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="lineWidth">
-                 <number>1</number>
-                </property>
-                <property name="text">
-                 <string>start y</string>
-                </property>
-               </widget>
-              </item>
-              <item row="18" column="2">
-               <widget class="QLabel" name="label1_7">
+              <item row="16" column="2">
+               <widget class="QLabel" name="label1_4">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -129,70 +96,7 @@
                  </sizepolicy>
                 </property>
                 <property name="text">
-                 <string>target x</string>
-                </property>
-               </widget>
-              </item>
-              <item row="18" column="4">
-               <widget class="QLabel" name="label1_8">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="lineWidth">
-                 <number>1</number>
-                </property>
-                <property name="text">
-                 <string>target y</string>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="2">
-               <widget class="QPushButton" name="button1_pathNext">
-                <property name="text">
-                 <string>Next</string>
-                </property>
-               </widget>
-              </item>
-              <item row="19" column="2">
-               <widget class="QLineEdit" name="lineEdit1_endx">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="2">
-               <widget class="QLabel" name="label1_1">
-                <property name="text">
-                 <string>Path ID (0-xx):</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-                </property>
-               </widget>
-              </item>
-              <item row="7" column="2">
-               <widget class="QLabel" name="label1_10">
-                <property name="text">
-                 <string>Selected ID:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="11" column="2">
-               <widget class="QLabel" name="label1_2">
-                <property name="layoutDirection">
-                 <enum>Qt::LeftToRight</enum>
-                </property>
-                <property name="text">
-                 <string>Closed-loop control</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                 <string>start x</string>
                 </property>
                </widget>
               </item>
@@ -203,23 +107,6 @@
                 </property>
                 <property name="text">
                  <string>start ori</string>
-                </property>
-               </widget>
-              </item>
-              <item row="14" column="2">
-               <widget class="QPushButton" name="button1_stopTest">
-                <property name="text">
-                 <string>Stop</string>
-                </property>
-               </widget>
-              </item>
-              <item row="17" column="2">
-               <widget class="QLineEdit" name="lineEdit1_startx">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
                 </property>
                </widget>
               </item>
@@ -251,36 +138,29 @@
                 </property>
                </widget>
               </item>
-              <item row="19" column="6">
-               <widget class="QLineEdit" name="lineEdit1_endori">
+              <item row="16" column="4">
+               <widget class="QLabel" name="label1_5">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
                 </property>
-               </widget>
-              </item>
-              <item row="17" column="4">
-               <widget class="QLineEdit" name="lineEdit1_starty">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-               </widget>
-              </item>
-              <item row="16" column="2">
-               <widget class="QLabel" name="label1_4">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
+                <property name="lineWidth">
+                 <number>1</number>
                 </property>
                 <property name="text">
-                 <string>start x</string>
+                 <string>start y</string>
+                </property>
+               </widget>
+              </item>
+              <item row="19" column="4">
+               <widget class="QLineEdit" name="lineEdit1_endy">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
                </widget>
               </item>
@@ -291,10 +171,60 @@
                 </property>
                </widget>
               </item>
-              <item row="4" column="2">
-               <widget class="QPushButton" name="button1_pathLast">
+              <item row="18" column="2">
+               <widget class="QLabel" name="label1_7">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
                 <property name="text">
-                 <string>Last</string>
+                 <string>target x</string>
+                </property>
+               </widget>
+              </item>
+              <item row="14" column="2">
+               <widget class="QPushButton" name="button1_stopTest">
+                <property name="text">
+                 <string>Stop</string>
+                </property>
+               </widget>
+              </item>
+              <item row="9" column="2">
+               <widget class="QPushButton" name="button1_setPath">
+                <property name="text">
+                 <string>Set</string>
+                </property>
+               </widget>
+              </item>
+              <item row="13" column="2">
+               <widget class="QPushButton" name="button1_startTest">
+                <property name="text">
+                 <string>Start</string>
+                </property>
+               </widget>
+              </item>
+              <item row="19" column="2">
+               <widget class="QLineEdit" name="lineEdit1_endx">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+               </widget>
+              </item>
+              <item row="11" column="2">
+               <widget class="QLabel" name="label1_2">
+                <property name="layoutDirection">
+                 <enum>Qt::LeftToRight</enum>
+                </property>
+                <property name="text">
+                 <string>Closed-loop control</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
@@ -313,19 +243,6 @@
                  <string>target ori</string>
                 </property>
                </widget>
-              </item>
-              <item row="15" column="2">
-               <spacer name="verticalSpacer1_1">
-                <property name="orientation">
-                 <enum>Qt::Vertical</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>20</width>
-                  <height>40</height>
-                 </size>
-                </property>
-               </spacer>
               </item>
               <item row="0" column="0" rowspan="15" colspan="2">
                <spacer name="horizontalSpacer1">
@@ -353,10 +270,29 @@
                 </property>
                </widget>
               </item>
-              <item row="13" column="2">
-               <widget class="QPushButton" name="button1_startTest">
+              <item row="0" column="2">
+               <widget class="QLabel" name="label1_1">
                 <property name="text">
-                 <string>Start</string>
+                 <string>Path ID (0-xx):</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="18" column="4">
+               <widget class="QLabel" name="label1_8">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="lineWidth">
+                 <number>1</number>
+                </property>
+                <property name="text">
+                 <string>target y</string>
                 </property>
                </widget>
               </item>
@@ -367,7 +303,31 @@
                 </property>
                </widget>
               </item>
-              <item row="22" column="2" colspan="5">
+              <item row="6" column="2">
+               <widget class="QPushButton" name="button1_pathNext">
+                <property name="text">
+                 <string>Next</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QPushButton" name="button1_pathLast">
+                <property name="text">
+                 <string>Last</string>
+                </property>
+               </widget>
+              </item>
+              <item row="17" column="2">
+               <widget class="QLineEdit" name="lineEdit1_startx">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+               </widget>
+              </item>
+              <item row="21" column="2" colspan="5">
                <spacer name="verticalSpacer1_2">
                 <property name="orientation">
                  <enum>Qt::Vertical</enum>
@@ -380,25 +340,38 @@
                 </property>
                </spacer>
               </item>
-              <item row="20" column="2">
-               <widget class="QLabel" name="label">
-                <property name="text">
-                 <string>cartPara.l</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                </property>
-               </widget>
-              </item>
-              <item row="20" column="6">
-               <widget class="QPushButton" name="button1_setl">
-                <property name="text">
-                 <string>Set</string>
+              <item row="19" column="6">
+               <widget class="QLineEdit" name="lineEdit1_endori">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
                </widget>
               </item>
-              <item row="20" column="4">
-               <widget class="QLineEdit" name="lineEdit1_12">
+              <item row="7" column="2">
+               <widget class="QLabel" name="label1_10">
+                <property name="text">
+                 <string>Selected ID:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="15" column="2">
+               <spacer name="verticalSpacer1_1">
+                <property name="orientation">
+                 <enum>Qt::Vertical</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>20</width>
+                  <height>40</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item row="17" column="4">
+               <widget class="QLineEdit" name="lineEdit1_starty">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                   <horstretch>0</horstretch>

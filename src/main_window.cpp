@@ -17,13 +17,13 @@ MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
     ReadSettings();
     // 显示页
     ui.tab_manager->setCurrentIndex(0);
-    // 更新 log
-    ui.listView1->setModel(lioNode.loggingModel());
-    QObject::connect(&lioNode, SIGNAL(loggingUpdated()), this, SLOT(updateLoggingView1()));
 
     /***LIO***/
     QObject::connect(ui.button2_rosStart, SIGNAL(released()), this, SLOT(startLIO()));
     QObject::connect(ui.button2_rosEnd, SIGNAL(released()), this, SLOT(endLIO()));
+
+	ui.listView2->setModel(lioNode.loggingModel());
+    QObject::connect(&lioNode, SIGNAL(loggingUpdated()), this, SLOT(updateLoggingView2()));
 
     /***CAN***/
     QObject::connect(ui.button2_w1s, SIGNAL(released()), this, SLOT(button2_w1s_slot()));
@@ -66,11 +66,11 @@ MainWindow::~MainWindow() {
 void MainWindow::ReadSettings() {
     QSettings settings("Qt-Ros Package", "class1_ros_qt_demo");
     QString startx = settings.value("startx", QString("1500.0")).toString();
-    QString starty = settings.value("starty", QString("1500.0")).toString();
-    QString startori = settings.value("startori", QString("0.2618")).toString();
+    QString starty = settings.value("starty", QString("5500.0")).toString();
+    QString startori = settings.value("startori", QString("-35")).toString();
     QString endx = settings.value("endx", QString("4500.0")).toString();
-    QString endy = settings.value("endy", QString("5500.0")).toString();
-    QString endori = settings.value("endori", QString("1.0472")).toString();
+    QString endy = settings.value("endy", QString("1500.0")).toString();
+    QString endori = settings.value("endori", QString("-65")).toString();
 	QString leftv = settings.value("leftv", QString("42")).toString();
     QString rightv = settings.value("rightv", QString("42")).toString();
     ui.lineEdit1_startx->setText(startx);
@@ -102,15 +102,23 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 }
 
 void MainWindow::updateLoggingView2() {
-    // ui.listView2->scrollToBottom();
+    ui.listView2->scrollToBottom();
 }
 
 void MainWindow::startLIO() {
-    // lioNode.init(main_argc, main_argv);
+    lioNode.init(main_argc, main_argv);
+	sleep(1);  // 主线程睡眠 1s，不影响 lio 线程
+
+	Eigen::Matrix3d R_W_G = lioNode.readRWG();
+	neal::logger(neal::LOG_INFO, "G_R_W: " + std::to_string(R_W_G(0,0)) + ' ' + std::to_string(R_W_G(0,1)) +
+		' ' + std::to_string(R_W_G(0,2)) + ' ' + std::to_string(R_W_G(1,0)) + ' ' + std::to_string(R_W_G(1,1)) +
+		' ' + std::to_string(R_W_G(1,2)) + ' ' + std::to_string(R_W_G(2,0)) + ' ' + std::to_string(R_W_G(2,1)) +
+		' ' + std::to_string(R_W_G(2,2)));
+	
 }
 
 void MainWindow::endLIO() {
-    // lioNode.exit();
+    lioNode.exit();
 }
 
 /***CAN***/
@@ -154,11 +162,11 @@ void MainWindow::button1_genPath_slot() {
 	Eigen::Vector3d initPoseRaw;
     initPoseRaw[0] = ui.lineEdit1_startx->text().toFloat();
     initPoseRaw[1] = ui.lineEdit1_starty->text().toFloat();
-    initPoseRaw[2] = ui.lineEdit1_startori->text().toFloat();
+    initPoseRaw[2] = ui.lineEdit1_startori->text().toFloat() * EIGEN_PI / 180.0;
     Eigen::Vector3d tarPosRaw;
     tarPosRaw[0] = ui.lineEdit1_endx->text().toFloat();
     tarPosRaw[1] = ui.lineEdit1_endy->text().toFloat();
-    tarPosRaw[2] = ui.lineEdit1_endori->text().toFloat();
+    tarPosRaw[2] = ui.lineEdit1_endori->text().toFloat() * EIGEN_PI / 180.0;
     Eigen::Vector3d initPose;
     initPose[0] = initPoseRaw[0] - tarPosRaw[0];
     initPose[1] = initPoseRaw[1] - tarPosRaw[1];
@@ -214,7 +222,7 @@ void MainWindow::button1_genPath_slot() {
 		wheelsCenter_path.emplace_back(Eigen::Vector2d((z2 - parabolic(0, 2)) * (z2 - parabolic(0, 2)) / 4 / parabolic(0, 0) + parabolic(0, 1) + tarPosRaw[0], z2 + tarPosRaw[1]));
 		// [-pi/2,pi/2]
 		float theta = atan(2 * parabolic(0, 0) / (z2 - parabolic(0, 2)));
-		if (theta < 0) {
+		if (theta > 0) {
 			theta = -EIGEN_PI + theta;
 		}
 		if (i==0) {
@@ -268,7 +276,7 @@ void MainWindow::button1_genPath_slot() {
 			double z2 = initPose(1) / 2 * (1 + cos(EIGEN_PI*i / (pointNum-1)));
 			wheelsCenter_path.emplace_back(Eigen::Vector2d(cubic2(pathId_local, 0) + cubic2(pathId_local, 1) * z2 + cubic2(pathId_local, 2) * z2 * z2 + cubic2(pathId_local, 3) * z2 * z2 * z2 + tarPosRaw[0], z2 + tarPosRaw[1]));	
 			float theta = atan(1/(cubic2(pathId_local, 1) + 2 * z2 * cubic2(pathId_local, 2) + 3 * z2 * z2 * cubic2(pathId_local, 3)));
-			if (theta < 0) {
+			if (theta > 0) {
 				theta = -EIGEN_PI + theta;
 			}
 			if (i==0) {
@@ -334,8 +342,8 @@ cv::Mat MainWindow::drawWCPath() {
 		return pathImg;
 	}
 	for (int i=0; i<wheelsCenter_paths[pathId].size(); i++) {
-        cv::circle(pathImg, cv::Point(wheelsCenter_paths[pathId].at(i)[0] / 20.0, wheelsCenter_paths[pathId].at(i)[1] / 20.0), 2, color1, -1);
-		cv::circle(pathImg, cv::Point(IMU_paths[pathId].at(i)[0] / 20.0, IMU_paths[pathId].at(i)[1] / 20.0), 2, color2, -1);
+        cv::circle(pathImg, cv::Point(wheelsCenter_paths[pathId].at(i)[0] / 20.0, height-wheelsCenter_paths[pathId].at(i)[1] / 20.0), 2, color1, -1);
+		cv::circle(pathImg, cv::Point(IMU_paths[pathId].at(i)[0] / 20.0, height-IMU_paths[pathId].at(i)[1] / 20.0), 2, color2, -1);
 	}
     return pathImg;
 }
@@ -350,8 +358,8 @@ cv::Mat MainWindow::drawIMUPath() {
 		return pathImg;
 	}
 	for (int i=0; i<IMU_simulationPath.size(); i++) {
-		cv::circle(pathImg, cv::Point(IMU_simulationPath.at(i)[0] / 20.0, IMU_simulationPath.at(i)[1] / 20.0), 2, color2, -1);
-		cv::circle(pathImg, cv::Point(wheelsCenter_simulationPath.at(i)[0] / 20.0, wheelsCenter_simulationPath.at(i)[1] / 20.0), 2, color3, -1);
+		cv::circle(pathImg, cv::Point(IMU_simulationPath.at(i)[0] / 20.0, height-IMU_simulationPath.at(i)[1] / 20.0), 2, color2, -1);
+		cv::circle(pathImg, cv::Point(wheelsCenter_simulationPath.at(i)[0] / 20.0, height-wheelsCenter_simulationPath.at(i)[1] / 20.0), 2, color3, -1);
 	}
     return pathImg;
 }
@@ -460,7 +468,7 @@ void MainWindow::button1_startTest_slot() {
 
 	// 开启 lio 节点
     lioNode.init(main_argc, main_argv);
-	sleep(3);  // 3s
+	sleep(1);  // 1s
 
 	// 记录参数
 	neal::logger(neal::LOG_INFO, "initial: " + std::to_string(init_pos(0)) +
@@ -494,11 +502,11 @@ void MainWindow::button1_startTest_slot() {
 			}
 		}
 
-		std::vector<double> cartPosei_raw = lioNode.read7DPose();
+		// std::vector<double> cartPosei_raw = lioNode.read7DPose();
+		// // Global 坐标系下，IMU 位置 + 四元数
+		// neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(cartPosei_raw[0]) + ' ' + std::to_string(cartPosei_raw[1]) + ' ' + std::to_string(cartPosei_raw[2]) + 
+		// 	' ' + std::to_string(cartPosei_raw[3]) + ' ' + std::to_string(cartPosei_raw[4]) + ' ' + std::to_string(cartPosei_raw[5]) + ' ' + std::to_string(cartPosei_raw[6]));
 		cartPosi = fromGPose2CPose(lioNode.read3DPose());
-		// Global 坐标系下，IMU 位置 + 四元数
-		neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(cartPosei_raw[0]) + ' ' + std::to_string(cartPosei_raw[1]) + ' ' + std::to_string(cartPosei_raw[2]) + 
-			' ' + std::to_string(cartPosei_raw[3]) + ' ' + std::to_string(cartPosei_raw[4]) + ' ' + std::to_string(cartPosei_raw[5]) + ' ' + std::to_string(cartPosei_raw[6]));
 		// control 坐标系下，x y ori
 		neal::logger(neal::LOG_INFO, "IMU3D_pose: " + std::to_string(cartPosi[0]) + ' ' + std::to_string(cartPosi[1]) + ' ' + std::to_string(cartPosi[2]));
 
@@ -528,18 +536,18 @@ void MainWindow::button1_startTest_slot() {
 		wheelsVeli = fromMiddleVel2WheelsVel2(middleVeli);  // vR, vL
 
 		// send wheelsVeli
-		float motor1_speed = wheelsVeli.y() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);  // rpm
-		float motor2_speed = wheelsVeli.x() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);
-		if (fabs(motor1_speed) > 40 || fabs(motor2_speed) > 40) {  // if motor speed too high.
-			neal::logger(neal::LOG_ERROR, "motor1_speed: " + std::to_string(motor1_speed));
-			neal::logger(neal::LOG_ERROR, "motor2_speed: " + std::to_string(motor2_speed));
+		float motorl_speed = wheelsVeli.y() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);  // rpm
+		float motorr_speed = wheelsVeli.x() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);
+		if (fabs(motorl_speed) > 40 || fabs(motorr_speed) > 40) {  // if motor speed too high.
+			neal::logger(neal::LOG_ERROR, "motorl_speed: " + std::to_string(motorl_speed));
+			neal::logger(neal::LOG_ERROR, "motorr_speed: " + std::to_string(motorr_speed));
 			break;
 		}
 
-		neal::logger(neal::LOG_INFO, "motor1_speed: " + std::to_string(motor1_speed));
-		neal::logger(neal::LOG_INFO, "motor2_speed: " + std::to_string(motor2_speed));
-		motor_1_drive_control.ctrlMotorMoveByVelocity(motor1_speed);  // vL, rpm
-		motor_2_drive_control.ctrlMotorMoveByVelocity(motor2_speed);  // vR
+		neal::logger(neal::LOG_INFO, "motorl_speed: " + std::to_string(motorl_speed));
+		neal::logger(neal::LOG_INFO, "motorr_speed: " + std::to_string(motorr_speed));
+		motor_1_drive_control.ctrlMotorMoveByVelocity(motorl_speed);  // vL, rpm
+		motor_2_drive_control.ctrlMotorMoveByVelocity(motorr_speed);  // vR
 	}
 
 	// stop test.
@@ -558,7 +566,7 @@ void MainWindow::button1_stopTest_slot() {
 }
 
 void MainWindow::updateLoggingView1() {
-    ui.listView1->scrollToBottom();
+    // ui.listView1->scrollToBottom();
 }
 
 /***cart model***/

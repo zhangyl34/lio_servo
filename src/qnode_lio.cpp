@@ -122,6 +122,10 @@ void LIONode::run() {
 
         state_point = kf.get_x();
         updatePose();
+        std::vector<double> cartPosei_raw = read7DPose();
+		// Global 坐标系下，IMU 位置 + 四元数
+		neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(cartPosei_raw[0]) + ' ' + std::to_string(cartPosei_raw[1]) + ' ' + std::to_string(cartPosei_raw[2]) + 
+			' ' + std::to_string(cartPosei_raw[3]) + ' ' + std::to_string(cartPosei_raw[4]) + ' ' + std::to_string(cartPosei_raw[5]) + ' ' + std::to_string(cartPosei_raw[6]));
 
         bool flg_EKF_inited = (measures.lidar_beg_time - first_lidar_time) < _INIT_TIME ? false : true;
         map_incremental(flg_EKF_inited);
