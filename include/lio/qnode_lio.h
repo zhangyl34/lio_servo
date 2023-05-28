@@ -124,9 +124,9 @@ private:
     // IMU 坐标系相对于 Ground 坐标系的位姿：G^xt, G^yt, G^orit
     void updatePose();
     std::mutex mtx_3DPose;
-    std::vector<double> pose3D;
+    std::vector<double> pose3D;  // 单位 mm
     std::mutex mtx_7DPose;
-    std::vector<double> pose7D;
+    std::vector<double> pose7D;  // 单位 mm
 };
 
 }  // namespace class1_ros_qt_demo

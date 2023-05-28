@@ -59,19 +59,8 @@ bool CanDeviceComm::close() {
 }
 
 bool CanDeviceComm::sendData(CanMessageStr& message_data) {
-    VCI_CAN_OBJ canalyst_ii_obj;
-    canalyst_ii_obj.ID = message_data.id;
-    canalyst_ii_obj.SendType = 1;
-    canalyst_ii_obj.DataLen = message_data.data_len;
-    canalyst_ii_obj.ExternFlag = message_data.is_extern_flag;
-    canalyst_ii_obj.RemoteFlag = message_data.is_remote_flag;
-    memcpy((void*)canalyst_ii_obj.Data, (void*)message_data.data, message_data.data_len);
-    if (1 == VCI_Transmit(device_type, device_index, can_index, &canalyst_ii_obj, 1)) {
-        return true;
-    } else {
-        printf("send data err\n");
-        return false;
-    }
+    send_queue.enqueue(message_data);
+    return true;
 }
 
 bool CanDeviceComm::recvData(CanMessageStr& recv_msg) {
@@ -90,10 +79,9 @@ bool CanDeviceComm::recvData(CanMessageStr& recv_msg) {
 
 void CanDeviceComm::run() {
     CanMessageStr recv_msg;
+    CanMessageStr send_msg;
     while(true) {
-        if (false == recvData(recv_msg)) {
-            usleep(200);
-        } else {
+        if (recvData(recv_msg) == true) {
             switch(recv_msg.id & 0x780U) {
                 case 0x80U: {
                     map_canopen[recv_msg.id & 0x7F]->recvEmergency(recv_msg.data);
@@ -115,6 +103,8 @@ void CanDeviceComm::run() {
                     map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
                 }
                 case 0x580U: {
+                    printf("recv data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", recv_msg.id, recv_msg.data[0], 
+                        recv_msg.data[1], recv_msg.data[2], recv_msg.data[3], recv_msg.data[4], recv_msg.data[5]);
                     map_canopen[recv_msg.id & 0x7F]->recvSdo(recv_msg.data);
                     break;
                 }
@@ -135,6 +125,24 @@ void CanDeviceComm::run() {
                 }
             }
         }
+        if (send_queue.isEmpty() != true) {
+            send_msg = send_queue.dequeue();
+            VCI_CAN_OBJ canalyst_ii_obj;
+            canalyst_ii_obj.ID = send_msg.id;
+            canalyst_ii_obj.SendType = 1;
+            canalyst_ii_obj.DataLen = send_msg.data_len;
+            canalyst_ii_obj.ExternFlag = send_msg.is_extern_flag;
+            canalyst_ii_obj.RemoteFlag = send_msg.is_remote_flag;
+            memcpy((void*)canalyst_ii_obj.Data, (void*)send_msg.data, send_msg.data_len);
+            printf("send data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", send_msg.id, send_msg.data[0], 
+                send_msg.data[1], send_msg.data[2], send_msg.data[3], send_msg.data[4], send_msg.data[5]);
+            if (1 == VCI_Transmit(device_type, device_index, can_index, &canalyst_ii_obj, 1)) {
+         
+            } else {
+                printf("send data err\n");
+            }
+        }
+        usleep(200);
     }
 }
 
@@ -195,17 +203,17 @@ bool Canopen::writeOD(unsigned char *data, unsigned char len, unsigned short ind
     memset(recv_sdo_data, 0, 8);
     comm->sendData(message_data);
 
-    if (true == sdo_handle_sem.tryAcquire(1, 500)) {
-        if (recv_sdo_data[0] == 0x60U) {
-            return true;
-        } else {
-            printf("write od err:cmd=0x%x!\n", recv_sdo_data[0]);
-            return false;
-        }
-    } else {
-        printf("write od timeout!\n");
-        return false;
-    }
+    // if (true == sdo_handle_sem.tryAcquire(1, 500)) {
+    //     if (recv_sdo_data[0] == 0x60U) {
+    //         return true;
+    //     } else {
+    //         printf("write od err:cmd=0x%x!\n", recv_sdo_data[0]);
+    //         return false;
+    //     }
+    // } else {
+    //     printf("write od timeout!\n");
+    //     return false;
+    // }
 }
 
 bool Canopen::readOD(unsigned char *data, unsigned char len, unsigned short index, unsigned char sub_index) {
@@ -224,27 +232,27 @@ bool Canopen::readOD(unsigned char *data, unsigned char len, unsigned short inde
     memset(recv_sdo_data, 0, 8);
     comm->sendData(message_data);
 
-    if (true == sdo_handle_sem.tryAcquire(1, 500)) {
-        if ((recv_sdo_data[0] == 0x4FU) && (1 == len)) {
-            memcpy(data, recv_sdo_data, len);
-            return true;
-        } else if ((recv_sdo_data[0] == 0x4BU) && (2 == len)) {
-            memcpy(data, recv_sdo_data, len);
-            return true;
-        } else if ((recv_sdo_data[0] == 0x47U) && (3 == len)) {
-            memcpy(data, recv_sdo_data, len);
-            return true;
-        } else if ((recv_sdo_data[0] == 0x43U) && (4 == len)) {
-            memcpy(data, recv_sdo_data, len);
-            return true;
-        } else {
-            printf("sdo val err:expect len=%d, actual cmd=0x%x!\n", len, recv_sdo_data[0]);
-            return false;
-        }
-    } else {
-        printf("read od timeout!\n");
-        return false;
-    }
+    // if (true == sdo_handle_sem.tryAcquire(1, 500)) {
+    //     if ((recv_sdo_data[0] == 0x4FU) && (1 == len)) {
+    //         memcpy(data, recv_sdo_data, len);
+    //         return true;
+    //     } else if ((recv_sdo_data[0] == 0x4BU) && (2 == len)) {
+    //         memcpy(data, recv_sdo_data, len);
+    //         return true;
+    //     } else if ((recv_sdo_data[0] == 0x47U) && (3 == len)) {
+    //         memcpy(data, recv_sdo_data, len);
+    //         return true;
+    //     } else if ((recv_sdo_data[0] == 0x43U) && (4 == len)) {
+    //         memcpy(data, recv_sdo_data, len);
+    //         return true;
+    //     } else {
+    //         printf("sdo val err:expect len=%d, actual cmd=0x%x!\n", len, recv_sdo_data[0]);
+    //         return false;
+    //     }
+    // } else {
+    //     printf("read od timeout!\n");
+    //     return false;
+    // }
 }
 
 bool Canopen::sendRpdo(unsigned short pdo_id, unsigned char *const data, unsigned char len) {
@@ -291,6 +299,6 @@ void Canopen::recvSdo(unsigned char *data) {
         (send_sdo_data[2] == data[2]) &&
         (send_sdo_data[3] == data[3])) {
             memcpy(recv_sdo_data, data, 8);
-            sdo_handle_sem.release(1);
+            //sdo_handle_sem.release(1);
     }
 }

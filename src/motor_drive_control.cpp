@@ -24,7 +24,7 @@ MotorDriveControl::MotorDriveControl(U8 node_id) :
 	this->start();  // 开启 run 线程，控制状态机的切换。
 
 	resetNode();  // 0x81
-    sleep(0.1);
+    usleep(100*1000);
 }
 
 void MotorDriveControl::recvTpdo(U16 pdo, U8* const data) {
@@ -70,7 +70,9 @@ void MotorDriveControl::ctrlMotorMoveByVelocity(F32 velocity)
 
 void MotorDriveControl::ctrlMotorQuickStop()
 {
+	printf("@%d, quick_stop!\n", node_id);
 	sendControlWord(CW_QUICK_STOP);
+	ctrlMotorMoveByVelocity(0.0);
 }
 
 MotorStatus MotorDriveControl::currentStatus()
@@ -91,16 +93,31 @@ void MotorDriveControl::configPdo()
 {
     U8 data[4] = { 0xFE };
 	writeOD(data, 1, 0x1800, 0x2);  // 异步
-    sleep(0.1);
+    usleep(100*1000);
 	data[0] = 0xE8;  // 1000ms
 	data[1] = 0x3;
 	writeOD(data, 2, 0x1800, 0x5);  // 事件定时器触发时间
-    sleep(0.1);
+    usleep(100*1000);
 	data[0] = 0x10;
 	data[1] = 0;
 	data[2] = 0;
 	data[3] = 0;
 	writeOD(data, 4, 0x6065, 0x0);
+	
+	U32 val = 0x80000300U+node_id;
+	writeOD((unsigned char*)&val, 4, 0x1401, 1);
+
+	val = 0x607E0008U;
+	writeOD((unsigned char*)&val, 4, 0x1601, 1);
+
+	val = 0x60FF0020U;
+	writeOD((unsigned char*)&val, 4, 0x1601, 2);
+
+	val = 0x2U;
+	writeOD((unsigned char*)&val, 1, 0x1601, 0);
+
+	val = 0x00000300U+node_id;
+	writeOD((unsigned char*)&val, 4, 0x1401, 1);
 
     data[0] = 0xE8;
 	data[1] = 0x3;
@@ -120,6 +137,7 @@ void MotorDriveControl::run()
 	while (true) {
         if (motor_ctrl_queue.isEmpty() != true) {
             buf = motor_ctrl_queue.dequeue();
+			printf("id=0x%x, msg:%d, cur_s=%d, get_s=%d\n", node_id, buf.event, cur_status, buf.obj.motor_status);
 			if (buf.event == MCE_STATUS_CHANGE)	{
 				//FILE_LOG("change status:cur status node id=%d, =%d, %d!\n", node_id, buf.obj.motor_status, cur_status);
 				if ((buf.obj.motor_status == READY_TO_SWITCH_ON) && (cur_status == SWITCH_ON_DISABLED)) {
@@ -129,15 +147,22 @@ void MotorDriveControl::run()
 				} else if ((buf.obj.motor_status == OPERATION_ENABLED) && (cur_status == SWITCHED_ON)) {
                     U8 sdo_data[] = { 0x3 };
 					writeOD(sdo_data, 1, 0x6060, 0);
-					sendTargetVelocity(ctrl_target_velocity);
+					//sendTargetVelocity(ctrl_target_velocity);
 				} else if (buf.obj.motor_status == SW_FAULT) {
 					sendFaultReset();
+				} else if (buf.obj.motor_status == SWITCH_ON_DISABLED) {
+					sendControlWord(CW_SHUTDOWN);
+				} else if (buf.obj.motor_status == SWITCHED_ON) {
+					sendControlWord(CW_ENABLE_OPERATION);
+				} else if (buf.obj.motor_status == READY_TO_SWITCH_ON) {
+					sendControlWord(CW_SWITCH_ON);
 				}
+
 				cur_status = buf.obj.motor_status;
 			} else if (buf.event == MCE_CTRL_MOTOR_VELOCITY_MODE) {
 				ctrl_target_velocity = buf.obj.velocity;
 				if (cur_status == SWITCH_ON_DISABLED) {
-					sendTargetVelocity(0.0);
+					//sendTargetVelocity(0.0);
 					sendControlWord(CW_SHUTDOWN);
 				} else if (cur_status == OPERATION_ENABLED) {
 					sendTargetVelocity(ctrl_target_velocity);
@@ -151,15 +176,14 @@ void MotorDriveControl::run()
 				sendGetCurVelocity();
 			}
 		} else {
-            msleep(1);
+            usleep(1*1000);
         }
 	}
 }
 
-void MotorDriveControl::sendFaultReset()
-{
+void MotorDriveControl::sendFaultReset() {
 	sendControlWord(CW_FAULT_RESET);
-    sleep(0.02);
+    usleep(20*1000);
 	sendControlWord(CW_DISABLE_VOLTAGE);
 }
 
@@ -173,6 +197,7 @@ void MotorDriveControl::sendControlWord(U16 ctrl_val)
 // rpm 上限 42
 void MotorDriveControl::sendTargetVelocity(F32 velocity)
 {
+	printf("send vel:@%d, val=%f\n", node_id, velocity);
     U8 send_data[8] = { 0 };
 	// 2000: pulse/round; 66.67: 减速比
 	F32 t_v = fabs((velocity * 500.0 * 4.0 * 66.666667) / (60.0 * 1000.0));  // pulse per millisecond. //32.0 * 4.0 * 53.0
@@ -194,6 +219,9 @@ void MotorDriveControl::sendTargetVelocity(F32 velocity)
 	//FILE_LOG("send val:0x%x, 0x%x, 0x%x, 0x%x\n", send_data[0], send_data[1], send_data[2], send_data[3]);
 	writeOD(send_polarity, 1, 0x607E, 0);
 	bool rc2 = writeOD(send_data, 4, 0x60FF, 0);
+	//U8 data[5] = { send_val, send_data[0], send_data[1], send_data[2], send_data[3]};
+
+    //sendRpdo(0x300, data, 5);
 }
 
 void MotorDriveControl::sendGetCurVelocity() {

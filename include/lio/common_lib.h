@@ -6,7 +6,7 @@
 #include <Eigen/Eigen>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <lio/Pose6D.h>
+#include <qtros/Pose6D.h>
 #include <sensor_msgs/Imu.h>
 
 #define G_m_s2 (9.81)  // 待统一，IMU_Pkrocessing.cpp 里用到。
@@ -19,7 +19,7 @@
 
 #define common_max(a,b)          ((a) > (b) ? (a) : (b))
 
-typedef lio::Pose6D Pose6D;
+typedef qtros::Pose6D Pose6D;
 typedef pcl::PointXYZINormal PointType;
 typedef pcl::PointCloud<PointType> PointCloudXYZI;
 typedef std::vector<PointType, Eigen::aligned_allocator<PointType>>  PointVector;

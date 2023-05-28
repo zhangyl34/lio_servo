@@ -77,6 +77,7 @@ void LIONode::run() {
     MeasureGroup measures;
     while (status) {
         if (flg_exit) {  // 有中断产生
+            log(Info, "exit.");
             break;
         }
         ros::spinOnce();
@@ -115,7 +116,7 @@ void LIONode::run() {
             log(Info, std::string("ikd-Tree initialized!"));
             continue;
         }
-        log(Info, "receiving Livox message.");
+        // log(Info, "receiving Livox message.");
         feats_down_world->resize(feats_down_size);
         Nearest_Points.resize(feats_down_size);
         kf.update_iterated_dyn_share_modified(_LASER_POINT_COV);
@@ -470,16 +471,16 @@ void LIONode::updatePose() {
 
     std::unique_lock<std::mutex> locker1(mtx_3DPose, std::defer_lock);
     locker1.lock();
-    pose3D[0] = IMU2DPose(0);
-    pose3D[1] = IMU2DPose(1);
+    pose3D[0] = IMU2DPose(0)*1000.0;  // m -> mm
+    pose3D[1] = IMU2DPose(1)*1000.0;
     pose3D[2] = atan2(R_IMU_G(1,0),R_IMU_G(0,0));
     locker1.unlock();
 
     std::unique_lock<std::mutex> locker2(mtx_7DPose, std::defer_lock);
     locker2.lock();
-    pose7D[0] = IMU2DPose(0);
-    pose7D[1] = IMU2DPose(1);
-    pose7D[2] = IMU2DPose(2);
+    pose7D[0] = IMU2DPose(0)*1000.0;  // m -> mm
+    pose7D[1] = IMU2DPose(1)*1000.0;
+    pose7D[2] = IMU2DPose(2)*1000.0;
     pose7D[3] = q.x();
     pose7D[4] = q.y();
     pose7D[5] = q.z();

@@ -48,16 +48,19 @@ MainWindow::MainWindow(int argc, char** argv, QWidget *parent)
 	/***cart model***/
 	cartPara.wheelsRadius = 75;
 	cartPara.wheelsDistance = 580;
-	cartPara.l = 100;  // careful
+	cartPara.a = 577.5+181.67-44;  // careful
+	cartPara.b = -16;              // careful
+	cartPara.theta = 0;            // careful
 	cartPara.linVelLim = 40;
 	cartPara.linAccLim = 15;
 	cartPara.angVelLim = 0.1;
 	cartPara.angAccLim = 0.04;
-	cartPara.communFreq = 26.5;  // careful
+	cartPara.communFreq = 10;  // careful
 }
 
 
 MainWindow::~MainWindow() {
+	lioNode.exit();
     /***CAN***/
     motor_1_drive_control.ctrlMotorQuickStop();
 	motor_2_drive_control.ctrlMotorQuickStop();
@@ -131,21 +134,21 @@ void MainWindow::button2_w2s_slot() {
 }
 
 void MainWindow::button2_canSend_slot() {
-	update_vel_timer->start(1000);
+	// update_vel_timer->start(1000);
     motor_1_drive_control.ctrlMotorMoveByVelocity(ui.lineEdit2_1->text().toFloat());
 	motor_2_drive_control.ctrlMotorMoveByVelocity(ui.lineEdit2_2->text().toFloat());
 }
 
 void MainWindow::button2_canStop_slot() {
-	update_vel_timer->stop();
+	// update_vel_timer->stop();
 	motor_1_drive_control.ctrlMotorQuickStop();
 	motor_2_drive_control.ctrlMotorQuickStop();
 }
 
 // 更新电机速度
 void MainWindow::refreshUITimerFun() {
-	ui.label2_7->setText(QString::number(motor_1_drive_control.currentVelocity()));
-	ui.label2_13->setText(QString::number(motor_2_drive_control.currentVelocity()));
+	// ui.label2_7->setText(QString::number(motor_1_drive_control.currentVelocity()));
+	// ui.label2_13->setText(QString::number(motor_2_drive_control.currentVelocity()));
 }
 
 /***Close-loop control***/
@@ -176,12 +179,7 @@ void MainWindow::button1_genPath_slot() {
     tarPos[1] = 0;
     tarPos[2] = tarPosRaw[2];
 
-	// 更新参数
-	init_pos(0) = initPoseRaw[0];
-	init_pos(1) = initPoseRaw[1];
-	tar_pos(0) = tarPosRaw[0];
-	tar_pos(1) = tarPosRaw[1];
-	tar_pos(2) = tarPosRaw[2];
+	tar_ori = tarPosRaw[2];
 
 	// y = x^2
 	Eigen::Matrix<double, 2, 3> parabolic(Eigen::Matrix<double, 2, 3>::Zero());
@@ -228,7 +226,8 @@ void MainWindow::button1_genPath_slot() {
 		if (i==0) {
 			init_oris.emplace_back(theta);
 		}
-		IMU_path.emplace_back(Eigen::Vector2d((z2 - parabolic(0, 2)) * (z2 - parabolic(0, 2)) / 4 / parabolic(0, 0) + parabolic(0, 1) + tarPosRaw[0] + cartPara.l * cos(theta), z2 + tarPosRaw[1] + cartPara.l * sin(theta)));
+		IMU_path.emplace_back(Eigen::Vector2d((z2 - parabolic(0, 2)) * (z2 - parabolic(0, 2)) / 4 / parabolic(0, 0) + parabolic(0, 1) + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
+											  z2 + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
 	}
 	wheelsCenter_paths.emplace_back(wheelsCenter_path);
 	IMU_paths.emplace_back(IMU_path);
@@ -245,7 +244,8 @@ void MainWindow::button1_genPath_slot() {
 		if (i==0) {
 			init_oris.emplace_back(theta);
 		}
-		IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.l * cos(theta), (z1 - parabolic(1, 1)) * (z1 - parabolic(1, 1)) / 4 / parabolic(1, 0) + parabolic(1, 2) + tarPosRaw[1] + cartPara.l * sin(theta)));
+		IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
+											  (z1 - parabolic(1, 1)) * (z1 - parabolic(1, 1)) / 4 / parabolic(1, 0) + parabolic(1, 2) + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
 	}
 	wheelsCenter_paths.emplace_back(wheelsCenter_path);
 	IMU_paths.emplace_back(IMU_path);
@@ -263,7 +263,8 @@ void MainWindow::button1_genPath_slot() {
 			if (i==0) {
 				init_oris.emplace_back(theta);
 			}
-			IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.l * cos(theta), cubic1(pathId_local, 0) + cubic1(pathId_local, 1) * z1 + cubic1(pathId_local, 2) * z1 * z1 + cubic1(pathId_local, 3) * z1 * z1 * z1 + tarPosRaw[1] + cartPara.l * sin(theta)));
+			IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
+												  cubic1(pathId_local, 0) + cubic1(pathId_local, 1) * z1 + cubic1(pathId_local, 2) * z1 * z1 + cubic1(pathId_local, 3) * z1 * z1 * z1 + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
 		}
 		wheelsCenter_paths.emplace_back(wheelsCenter_path);
 		IMU_paths.emplace_back(IMU_path);
@@ -282,7 +283,8 @@ void MainWindow::button1_genPath_slot() {
 			if (i==0) {
 				init_oris.emplace_back(theta);
 			}
-			IMU_path.emplace_back(Eigen::Vector2d(cubic2(pathId_local, 0) + cubic2(pathId_local, 1) * z2 + cubic2(pathId_local, 2) * z2 * z2 + cubic2(pathId_local, 3) * z2 * z2 * z2 + tarPosRaw[0] + cartPara.l * cos(theta), z2 + tarPosRaw[1] + cartPara.l * sin(theta)));
+			IMU_path.emplace_back(Eigen::Vector2d(cubic2(pathId_local, 0) + cubic2(pathId_local, 1) * z2 + cubic2(pathId_local, 2) * z2 * z2 + cubic2(pathId_local, 3) * z2 * z2 * z2 + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
+			                                      z2 + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
 		}
 		wheelsCenter_paths.emplace_back(wheelsCenter_path);
 		IMU_paths.emplace_back(IMU_path);
@@ -421,7 +423,7 @@ void MainWindow::button1_setPath_slot() {
 		double xm_dot = (tarPosi(0) - cartPosi(0));
 		double ym_dot = (tarPosi(1) - cartPosi(1));
 		double m_dot = sqrt(pow(xm_dot, 2) + pow(ym_dot, 2));
-		double threshold = sqrt(pow(cartPara.linVelLim, 2) + pow(cartPara.l * cartPara.angVelLim, 2));
+		double threshold = sqrt(pow(cartPara.linVelLim, 2) + pow(cartPara.a * cartPara.angVelLim, 2));
 		if (m_dot > threshold) {
 			xm_dot = xm_dot / m_dot * threshold;
 			ym_dot = ym_dot / m_dot * threshold;
@@ -442,7 +444,8 @@ void MainWindow::button1_setPath_slot() {
 		wheelsVeli = fromMiddleVel2WheelsVel2(middleVeli);  // vR, vL
 
 		IMU_simulationPath.emplace_back(Eigen::Vector2d(cartPosi(0), cartPosi(1)));
-		wheelsCenter_simulationPath.emplace_back(Eigen::Vector2d(cartPosi(0) - cartPara.l * cos(cartPosi(2)), cartPosi(1) - cartPara.l * sin(cartPosi(2))));
+		wheelsCenter_simulationPath.emplace_back(Eigen::Vector2d(cartPosi(0) - cartPara.a*cos(cartPosi(2)-cartPara.theta) + cartPara.b*sin(cartPosi(2)-cartPara.theta),
+																 cartPosi(1) - cartPara.a*sin(cartPosi(2)-cartPara.theta) - cartPara.b*cos(cartPosi(2)-cartPara.theta)));
 	}
 
 	// 绘制两条 IMU 轨迹
@@ -452,7 +455,7 @@ void MainWindow::button1_setPath_slot() {
 	ui.label1_3->show();
 
     // 显示角度误差
-	float ori_err = tar_pos(2) - cartPosi(2);
+	float ori_err = tar_ori - cartPosi(2);
 	while (ori_err > EIGEN_PI) {
 		ori_err -= 2*EIGEN_PI;
 	}
@@ -471,10 +474,10 @@ void MainWindow::button1_startTest_slot() {
 	sleep(1);  // 1s
 
 	// 记录参数
-	neal::logger(neal::LOG_INFO, "initial: " + std::to_string(init_pos(0)) +
-		' ' + std::to_string(init_pos(1)) + ' ' + std::to_string(init_oris[pathId]));
-	neal::logger(neal::LOG_INFO, "target: " + std::to_string(tar_pos(0)) +
-		' ' + std::to_string(tar_pos(1)) + ' ' + std::to_string(tar_pos(2)));
+	neal::logger(neal::LOG_INFO, "initial: " + std::to_string(IMU_paths[pathId][0](0)) +
+		' ' + std::to_string(IMU_paths[pathId][0](1)) + ' ' + std::to_string(init_oris[pathId]));
+	neal::logger(neal::LOG_INFO, "target: " + std::to_string(IMU_controlPoint.back()(0)) +
+		' ' + std::to_string(IMU_controlPoint.back()(1)) + ' ' + std::to_string(tar_ori));
 	Eigen::Matrix3d R_W_G = lioNode.readRWG();
 	neal::logger(neal::LOG_INFO, "G_R_W: " + std::to_string(R_W_G(0,0)) + ' ' + std::to_string(R_W_G(0,1)) +
 		' ' + std::to_string(R_W_G(0,2)) + ' ' + std::to_string(R_W_G(1,0)) + ' ' + std::to_string(R_W_G(1,1)) +
@@ -484,6 +487,7 @@ void MainWindow::button1_startTest_slot() {
 	double disThresh = 10;  // 10mm
 	int cpid = 1;           // control point id (1-20).
 	Eigen::Vector2d tarPosi(IMU_controlPoint.at(cpid)(0), IMU_controlPoint.at(cpid)(1));
+	neal::logger(neal::LOG_INFO, "tar_pos: " + std::to_string(tarPosi(0)) + ' ' + std::to_string(tarPosi(1)));
 	Eigen::Vector3d cartPosi(fromGPose2CPose(lioNode.read3DPose()));
 	Eigen::Vector2d cartVeli(Eigen::Vector2d::Zero());
 	Eigen::Vector2d middleVeli(Eigen::Vector2d::Zero());
@@ -498,6 +502,7 @@ void MainWindow::button1_startTest_slot() {
 			if (disErr < preErr) {  // update tarPosi when get close to the previous one.
 				cpid++;
 				tarPosi = IMU_controlPoint.at(cpid);  // update tarPosi.
+				neal::logger(neal::LOG_INFO, "tar_pos: " + std::to_string(tarPosi(0)) + ' ' + std::to_string(tarPosi(1)));
 				disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
 			}
 		}
@@ -515,7 +520,7 @@ void MainWindow::button1_startTest_slot() {
 		double xm_dot = (tarPosi(0) - cartPosi(0));
 		double ym_dot = (tarPosi(1) - cartPosi(1));
 		double m_dot = sqrt(pow(xm_dot, 2) + pow(ym_dot, 2));
-		double threshold = sqrt(pow(cartPara.linVelLim, 2) + pow(cartPara.l * cartPara.angVelLim, 2));
+		double threshold = sqrt(pow(cartPara.linVelLim, 2) + pow(cartPara.a * cartPara.angVelLim, 2));
 		if (m_dot > threshold) {
 			xm_dot = xm_dot / m_dot * threshold;
 			ym_dot = ym_dot / m_dot * threshold;
@@ -548,6 +553,10 @@ void MainWindow::button1_startTest_slot() {
 		neal::logger(neal::LOG_INFO, "motorr_speed: " + std::to_string(motorr_speed));
 		motor_1_drive_control.ctrlMotorMoveByVelocity(motorl_speed);  // vL, rpm
 		motor_2_drive_control.ctrlMotorMoveByVelocity(motorr_speed);  // vR
+		std::cout << "motorl_speed: " << std::to_string(motorl_speed) << std::endl;
+		std::cout << "motorr_speed: " + std::to_string(motorr_speed) << std::endl;
+
+		usleep(100*1000);  // lio 位姿更新频率 10Hz；sleep 不能输入小数
 	}
 
 	// stop test.
@@ -557,12 +566,12 @@ void MainWindow::button1_startTest_slot() {
 }
 
 void MainWindow::button1_stopTest_slot() {
-    // 此时界面应该已经卡死了
-	lioNode.exit();
+    // 此时界面已经卡死了
+	// lioNode.exit();
 
-    /***CAN***/
-    motor_1_drive_control.ctrlMotorQuickStop();
-	motor_2_drive_control.ctrlMotorQuickStop();
+    // /***CAN***/
+    // motor_1_drive_control.ctrlMotorQuickStop();
+	// motor_2_drive_control.ctrlMotorQuickStop();
 }
 
 void MainWindow::updateLoggingView1() {
@@ -576,9 +585,9 @@ Eigen::Vector3d MainWindow::fromWheelsVel2CartVel3(
 	Eigen::Vector3d cartVel3;  // (xDot, yDot, thetaDot).
 	double v = (wheelsVelIn(0) + wheelsVelIn(1)) / 2;
 	double w = (wheelsVelIn(0) - wheelsVelIn(1)) / cartPara.wheelsDistance;
-	cartVel3 << cos(cartCurrPosIn(2)) * v - cartPara.l * sin(cartCurrPosIn(2)) * w,
-		sin(cartCurrPosIn(2)) * v + cartPara.l * cos(cartCurrPosIn(2)) * w,
-		w;
+	cartVel3 << cos(cartCurrPosIn(2)-cartPara.theta)*v - cartPara.a*sin(cartCurrPosIn(2)-cartPara.theta)*w - cartPara.b*cos(cartCurrPosIn(2)-cartPara.theta)*w,
+				sin(cartCurrPosIn(2)-cartPara.theta)*v + cartPara.a*cos(cartCurrPosIn(2)-cartPara.theta)*w - cartPara.b*sin(cartCurrPosIn(2)-cartPara.theta)*w,
+				w;
 	return cartVel3;
 }
 
@@ -586,8 +595,8 @@ Eigen::Vector2d MainWindow::fromCartVel2MiddleVel2(
 	const double& xl_dot, const double& yl_dot, const double& theta) const {
 
 	Eigen::Vector2d middleCurrVel;  // (v, w)
-	middleCurrVel << cos(theta) * xl_dot + sin(theta) * yl_dot,
-		-sin(theta) / cartPara.l * xl_dot + cos(theta) / cartPara.l * yl_dot;
+	middleCurrVel << (cos(theta-cartPara.theta)-cartPara.b/cartPara.a*sin(theta-cartPara.theta))*xl_dot + (sin(theta-cartPara.theta)+cartPara.b/cartPara.a*cos(theta-cartPara.theta))*yl_dot,
+					  -sin(theta-cartPara.theta)/cartPara.a*xl_dot + cos(theta-cartPara.theta)/cartPara.a*yl_dot;
 	return middleCurrVel;
 }
 
@@ -603,9 +612,10 @@ Eigen::Vector2d MainWindow::fromMiddleVel2WheelsVel2(
 Eigen::Vector3d MainWindow::fromGPose2CPose(
 	const std::vector<double>& GPose) const {
 
-	Eigen::Vector3d CPose(init_pos(0)+GPose[0]*cos(init_oris[pathId])+GPose[1]*sin(init_oris[pathId]),
-						  init_pos(1)+GPose[0]*sin(init_oris[pathId])-GPose[1]*cos(init_oris[pathId]),
-						  init_pos(2)-GPose[2]);
+	Eigen::Vector3d CPose;
+	CPose << IMU_paths[pathId][0](0)+GPose[0]*cos(init_oris[pathId])-GPose[1]*sin(init_oris[pathId]),
+			 IMU_paths[pathId][0](1)+GPose[0]*sin(init_oris[pathId])+GPose[1]*cos(init_oris[pathId]),
+			 init_oris[pathId]+GPose[2];
 	return CPose;
 }
 

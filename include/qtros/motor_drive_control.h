@@ -8,6 +8,7 @@ typedef unsigned char U8;
 typedef signed char S8;
 typedef signed short S16;
 typedef float F32;
+typedef unsigned int U32;
 
 typedef U16 CtrlWord;
 const CtrlWord CW_SHUTDOWN = 0x0006;

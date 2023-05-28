@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <unistd.h>
 
 #include "ui_main_window.h"
 #include "lio/qnode_lio.h"
@@ -16,7 +17,9 @@ namespace class1_ros_qt_demo {
 struct CartPara {
 	double wheelsRadius;    // mm
 	double wheelsDistance;  // distance between the two differential wheels.
-	double l;           // distance form wheels-center to the origin of IMU.
+	double a;           // distance from wheels-center to the origin of IMU along x direction.
+	double b;           // distance from wheels-center to the origin of IMU along y direction.
+	double theta;       // angle from ws to c
 	double linVelLim;   // mm/s
 	double linAccLim;   // mm/s^2
 	double angVelLim;   // rad/s
@@ -77,8 +80,7 @@ private:
 	std::vector<std::vector<Eigen::Vector2d>> wheelsCenter_paths;  // 28,101
 	std::vector<Eigen::Vector2d> wheelsCenter_simulationPath;
 	std::vector<float> init_oris;  // 28
-	Eigen::Vector2d init_pos;      // x_c,y_c
-	Eigen::Vector3d tar_pos;       // x_c,y_c,ori_c
+	float tar_ori;                 // ori_c
 	int pathId;
 	// 实际控制点是 IMU
 	std::vector<std::vector<Eigen::Vector2d>> IMU_paths;  // 28,101
@@ -92,7 +94,7 @@ private:
 	Eigen::Vector2d fromCartVel2MiddleVel2(const double& xl_dot, const double& yl_dot, const double& theta) const;
 	// return (vR,vL) mm/s
 	Eigen::Vector2d fromMiddleVel2WheelsVel2(const Eigen::Vector2d& cartCurrVelIn) const;
-	// return (xc,yc,oric)
+	// return control 坐标系下 (xc,yc,oric)
 	Eigen::Vector3d fromGPose2CPose(const std::vector<double>& GPose) const;
 	CartPara cartPara;
 

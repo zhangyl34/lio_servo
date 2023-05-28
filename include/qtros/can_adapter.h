@@ -2,6 +2,7 @@
 
 #include "QThread"
 #include "QSemaphore"
+#include "QQueue"
 
 typedef struct {
 	unsigned int id;
@@ -28,6 +29,7 @@ private:
     int device_type;
     int device_index;
     int can_index;
+    QQueue<CanMessageStr> send_queue;
 };
 
 class Canopen {
