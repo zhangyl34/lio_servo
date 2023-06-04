@@ -20,9 +20,9 @@ MotorDriveControl::MotorDriveControl(U8 node_id) : Canopen(node_id) {
 	cur_status = NOT_READY_TO_SWITCH_ON;
 	ctrl_target_velocity = 0.0F;
 	
-	this->start();  // 开启 run 线程，控制状态机的切换。
+	// this->start();  // 开启 run 线程，控制状态机的切换。
 
-	resetNode();  // 0x81
+	// resetNode();  // 0x81
     usleep(100*1000);
 }
 

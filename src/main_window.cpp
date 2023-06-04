@@ -224,7 +224,7 @@ void MainWindow::button1_genPath_slot() {
 			theta = -EIGEN_PI + theta;
 		}
 		if (i==0) {
-			init_oris.emplace_back(theta);
+			init_oris.emplace_back(theta+cartPara.theta);
 		}
 		IMU_path.emplace_back(Eigen::Vector2d((z2 - parabolic(0, 2)) * (z2 - parabolic(0, 2)) / 4 / parabolic(0, 0) + parabolic(0, 1) + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
 											  z2 + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
@@ -242,7 +242,7 @@ void MainWindow::button1_genPath_slot() {
 			theta = -EIGEN_PI + theta;
 		}
 		if (i==0) {
-			init_oris.emplace_back(theta);
+			init_oris.emplace_back(theta+cartPara.theta);
 		}
 		IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
 											  (z1 - parabolic(1, 1)) * (z1 - parabolic(1, 1)) / 4 / parabolic(1, 0) + parabolic(1, 2) + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
@@ -261,7 +261,7 @@ void MainWindow::button1_genPath_slot() {
 				theta = -EIGEN_PI + theta;
 			}
 			if (i==0) {
-				init_oris.emplace_back(theta);
+				init_oris.emplace_back(theta+cartPara.theta);
 			}
 			IMU_path.emplace_back(Eigen::Vector2d(z1 + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
 												  cubic1(pathId_local, 0) + cubic1(pathId_local, 1) * z1 + cubic1(pathId_local, 2) * z1 * z1 + cubic1(pathId_local, 3) * z1 * z1 * z1 + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
@@ -281,7 +281,7 @@ void MainWindow::button1_genPath_slot() {
 				theta = -EIGEN_PI + theta;
 			}
 			if (i==0) {
-				init_oris.emplace_back(theta);
+				init_oris.emplace_back(theta+cartPara.theta);
 			}
 			IMU_path.emplace_back(Eigen::Vector2d(cubic2(pathId_local, 0) + cubic2(pathId_local, 1) * z2 + cubic2(pathId_local, 2) * z2 * z2 + cubic2(pathId_local, 3) * z2 * z2 * z2 + tarPosRaw[0] + cartPara.a*cos(theta) - cartPara.b*sin(theta),
 			                                      z2 + tarPosRaw[1] + cartPara.a*sin(theta) + cartPara.b*cos(theta)));
@@ -491,10 +491,12 @@ void MainWindow::button1_startTest_slot() {
 	Eigen::Vector2d tarPosi(IMU_controlPoint.at(cpid)(0), IMU_controlPoint.at(cpid)(1));
 	neal::logger(neal::LOG_INFO, "tar_pos: " + std::to_string(tarPosi(0)) + ' ' + std::to_string(tarPosi(1)));
 	Eigen::Vector3d cartPosi(fromGPose2CPose(lioNode.read3DPose()));
+	Eigen::Vector3d cartPosi_raw(fromGPose2CPose(lioNode.read3DPose()));
 	Eigen::Vector2d cartVeli(Eigen::Vector2d::Zero());
 	Eigen::Vector2d middleVeli(Eigen::Vector2d::Zero());
 	Eigen::Vector2d wheelsVeli(Eigen::Vector2d::Zero());
 	Eigen::Vector3d cartVel3i(Eigen::Vector3d::Zero());
+	Eigen::Matrix4d kalman_P = 3*Eigen::Matrix4d::Identity();
 	while (pow(cartPosi(0) - IMU_controlPoint.back()(0), 2) + pow(cartPosi(1) - IMU_controlPoint.back()(1), 2) > disThresh * disThresh) {
 		double disErr = sqrt(pow(cartPosi(0) - tarPosi(0), 2) + pow(cartPosi(1) - tarPosi(1), 2));
 		// 更新 control point
@@ -513,9 +515,39 @@ void MainWindow::button1_startTest_slot() {
 		// // Global 坐标系下，IMU 位置 + 四元数
 		// neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(cartPosei_raw[0]) + ' ' + std::to_string(cartPosei_raw[1]) + ' ' + std::to_string(cartPosei_raw[2]) + 
 		// 	' ' + std::to_string(cartPosei_raw[3]) + ' ' + std::to_string(cartPosei_raw[4]) + ' ' + std::to_string(cartPosei_raw[5]) + ' ' + std::to_string(cartPosei_raw[6]));
-		cartPosi = fromGPose2CPose(lioNode.read3DPose());
+		cartPosi_raw = fromGPose2CPose(lioNode.read3DPose());
 		// control 坐标系下，x y ori
-		neal::logger(neal::LOG_INFO, "IMU3D_pose: " + std::to_string(cartPosi[0]) + ' ' + std::to_string(cartPosi[1]) + ' ' + std::to_string(cartPosi[2]));
+		neal::logger(neal::LOG_INFO, "IMU3D_pose_before_filter: " + std::to_string(cartPosi_raw[0]) + ' ' + std::to_string(cartPosi_raw[1]) + ' ' + std::to_string(cartPosi_raw[2]));
+
+		// Kalman filter
+		Eigen::Matrix4d kalman_F;
+		kalman_F << 1, 0, 1/cartPara.communFreq, 0,
+					0, 1, 0, 1/cartPara.communFreq,
+					0, 0, 1, 0,
+					0, 0, 0, 1;
+		Eigen::Matrix<double,2,4> kalman_H;
+		kalman_H << 1, 0, 0, 0,
+					0, 1, 0, 0;
+		double kalman_q1 = 5.0, kalman_q2 = 5.0;  // 假设速度 40mm/s，位置过程噪声 q/2/10/10*40=1mm
+		Eigen::Matrix4d kalman_Q;
+		kalman_Q << kalman_q1/3/cartPara.communFreq/cartPara.communFreq/cartPara.communFreq, 0, kalman_q1/2/cartPara.communFreq/cartPara.communFreq, 0,
+					0, kalman_q2/3/cartPara.communFreq/cartPara.communFreq/cartPara.communFreq, 0, kalman_q2/2/cartPara.communFreq/cartPara.communFreq,
+					kalman_q1/2/cartPara.communFreq/cartPara.communFreq, 0, kalman_q1/cartPara.communFreq, 0,
+					0, kalman_q2/2/cartPara.communFreq/cartPara.communFreq, 0, kalman_q2/cartPara.communFreq;
+		Eigen::Matrix2d kalman_R;
+		kalman_R << 5, 0,
+					0, 5;
+		Eigen::Vector4d kalman_x;
+		cartVel3i = fromWheelsVel2CartVel3(cartPosi, wheelsVeli);
+		kalman_x << cartPosi(0), cartPosi(1), cartVel3i(0), cartVel3i(1);
+		Eigen::Vector4d kalman_x_ = kalman_F*kalman_x;
+		Eigen::Matrix4d kalman_P_ = kalman_F*kalman_P*kalman_F.transpose() + kalman_Q;
+		Eigen::Matrix<double,4,2> kalman_K = kalman_P_*kalman_H.transpose()*(kalman_H*kalman_P_*kalman_H.transpose()+kalman_R).inverse();
+		kalman_x = kalman_x_ + kalman_K*(cartPosi_raw.block<2,1>(0,0)-kalman_H*kalman_x_);
+		kalman_P = (Eigen::Matrix4d::Identity()-kalman_K*kalman_H)*kalman_P_;
+		cartPosi << kalman_x(0), kalman_x(1), cartPosi_raw(2);
+		// control 坐标系下，x y ori
+		neal::logger(neal::LOG_INFO, "IMU3D_pose_after_filter: " + std::to_string(cartPosi[0]) + ' ' + std::to_string(cartPosi[1]) + ' ' + std::to_string(cartPosi[2]));
 
 		// compute next velocity.
 		/* k1=k2=1*/
@@ -550,7 +582,7 @@ void MainWindow::button1_startTest_slot() {
 		// motor_1_drive_control.ctrlMotorMoveByVelocity(motorl_speed);  // vL, rpm
 		// motor_2_drive_control.ctrlMotorMoveByVelocity(motorr_speed);  // vR
 
-		usleep(100*1000);  // lio 位姿更新频率 10Hz；sleep 不能输入小数
+		usleep(99*1000);  // lio 位姿更新频率 10Hz；sleep 不能输入小数
 	}
 
 	// stop test.
