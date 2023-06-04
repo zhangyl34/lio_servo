@@ -5,9 +5,9 @@
 cmake_minimum_required(VERSION 3.16.3)
 project(qtros)
 
-# debug mdoe.
-SET(CMAKE_BUILD_TYPE "Debug")
-SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
+# debug mode.
+SET(CMAKE_BUILD_TYPE "Release")
+# SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 
 SET(CMAKE_CXX_STANDARD 14)

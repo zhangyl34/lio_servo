@@ -57,7 +57,6 @@ public:
 
     /***用于闭环控制的访问接口***/
     std::vector<double> read3DPose();
-    std::vector<double> read7DPose();
     M3D readRWG() const {return p_imu->get_R_W_G();};
 
 Q_SIGNALS:
@@ -125,7 +124,6 @@ private:
     void updatePose();
     std::mutex mtx_3DPose;
     std::vector<double> pose3D;  // 单位 mm
-    std::mutex mtx_7DPose;
     std::vector<double> pose7D;  // 单位 mm
 };
 

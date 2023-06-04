@@ -470,7 +470,9 @@ void MainWindow::button1_setPath_slot() {
 void MainWindow::button1_startTest_slot() {
 
 	// 开启 lio 节点
-    lioNode.init(main_argc, main_argv);
+    if (!lioNode.init(main_argc, main_argv)) {
+		return;
+	}
 	sleep(1);  // 1s
 
 	// 记录参数
@@ -543,18 +545,10 @@ void MainWindow::button1_startTest_slot() {
 		// send wheelsVeli
 		float motorl_speed = wheelsVeli.y() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);  // rpm
 		float motorr_speed = wheelsVeli.x() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);
-		if (fabs(motorl_speed) > 40 || fabs(motorr_speed) > 40) {  // if motor speed too high.
-			neal::logger(neal::LOG_ERROR, "motorl_speed: " + std::to_string(motorl_speed));
-			neal::logger(neal::LOG_ERROR, "motorr_speed: " + std::to_string(motorr_speed));
-			break;
-		}
-
 		neal::logger(neal::LOG_INFO, "motorl_speed: " + std::to_string(motorl_speed));
 		neal::logger(neal::LOG_INFO, "motorr_speed: " + std::to_string(motorr_speed));
-		motor_1_drive_control.ctrlMotorMoveByVelocity(motorl_speed);  // vL, rpm
-		motor_2_drive_control.ctrlMotorMoveByVelocity(motorr_speed);  // vR
-		std::cout << "motorl_speed: " << std::to_string(motorl_speed) << std::endl;
-		std::cout << "motorr_speed: " + std::to_string(motorr_speed) << std::endl;
+		// motor_1_drive_control.ctrlMotorMoveByVelocity(motorl_speed);  // vL, rpm
+		// motor_2_drive_control.ctrlMotorMoveByVelocity(motorr_speed);  // vR
 
 		usleep(100*1000);  // lio 位姿更新频率 10Hz；sleep 不能输入小数
 	}

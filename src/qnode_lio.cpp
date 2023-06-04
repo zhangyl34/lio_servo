@@ -63,7 +63,7 @@ bool LIONode::init(int argc, char** argv) {
 	sub_pcl = nh.subscribe<livox_ros_driver::CustomMsg>(lid_topic, 200000, [this](const livox_ros_driver::CustomMsg::ConstPtr &msg) { livox_pcl_cbk(msg); });
     sub_imu = nh.subscribe<sensor_msgs::Imu>(imu_topic, 200000, [this](const sensor_msgs::Imu::ConstPtr &msg) { imu_cbk(msg); });
     pubLaserCloudFull = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100000);
-    log(Info, std::string("***LIO START***"));
+    neal::logger(neal::LOG_INFO, std::string("***LIO START***"));
 
     start();  // 启动 QThread，执行 run() 函数
 	return true;
@@ -77,7 +77,7 @@ void LIONode::run() {
     MeasureGroup measures;
     while (status) {
         if (flg_exit) {  // 有中断产生
-            log(Info, "exit.");
+            neal::logger(neal::LOG_INFO, "exit.");
             break;
         }
         ros::spinOnce();
@@ -93,7 +93,7 @@ void LIONode::run() {
         }
         p_imu->Process(measures, kf, feats_undistort);
         if (feats_undistort->empty() || (feats_undistort == NULL)) {
-            log(Warn, std::string("No point, skip this scan!(1)"));
+            neal::logger(neal::LOG_WARN, std::string("No point, skip this scan!(1)"));
             continue;
         }
         state_point = kf.get_x();
@@ -102,7 +102,7 @@ void LIONode::run() {
         downSizeFilterSurf.filter(*feats_down_body);
         int feats_down_size = feats_down_body->points.size();
         if (feats_down_size <= 5) {
-            log(Warn, std::string("No point, skip this scan!(2)"));
+            neal::logger(neal::LOG_WARN, std::string("No point, skip this scan!(2)"));
             continue;
         }
 
@@ -113,7 +113,7 @@ void LIONode::run() {
                 pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
             }
             ikdtree->Build(feats_down_world->points);
-            log(Info, std::string("ikd-Tree initialized!"));
+            neal::logger(neal::LOG_INFO, std::string("ikd-Tree initialized!"));
             continue;
         }
         // log(Info, "receiving Livox message.");
@@ -123,10 +123,9 @@ void LIONode::run() {
 
         state_point = kf.get_x();
         updatePose();
-        std::vector<double> cartPosei_raw = read7DPose();
 		// Global 坐标系下，IMU 位置 + 四元数
-		neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(cartPosei_raw[0]) + ' ' + std::to_string(cartPosei_raw[1]) + ' ' + std::to_string(cartPosei_raw[2]) + 
-			' ' + std::to_string(cartPosei_raw[3]) + ' ' + std::to_string(cartPosei_raw[4]) + ' ' + std::to_string(cartPosei_raw[5]) + ' ' + std::to_string(cartPosei_raw[6]));
+		neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(pose7D[0]) + ' ' + std::to_string(pose7D[1]) + ' ' + std::to_string(pose7D[2]) + 
+			' ' + std::to_string(pose7D[3]) + ' ' + std::to_string(pose7D[4]) + ' ' + std::to_string(pose7D[5]) + ' ' + std::to_string(pose7D[6]));
 
         bool flg_EKF_inited = (measures.lidar_beg_time - first_lidar_time) < _INIT_TIME ? false : true;
         map_incremental(flg_EKF_inited);
@@ -144,14 +143,14 @@ void LIONode::run() {
         std::string strout;
         strout = "gravity: x " + std::to_string(gravity(0)) +
             ", y " + std::to_string(gravity(1)) + ", z " + std::to_string(gravity(2));
-        log(Info, strout);
+        neal::logger(neal::LOG_INFO, strout);
         std::string file_name = std::string("scans.ply");
         std::string all_points_dir(string(string(ROOT_DIR) + "PCD/") + file_name);
         pcl::PLYWriter writer;
-        log(Info, "current scan saved to /PCD/"+file_name);
+        neal::logger(neal::LOG_INFO, "current scan saved to /PCD/"+file_name);
         writer.write(all_points_dir, *pcl_wait_save);
     }
-    log(Info, "***LIO END***");
+    neal::logger(neal::LOG_INFO, "***LIO END***");
 	Q_EMIT rosShutdown();
 }
 
@@ -245,8 +244,7 @@ void LIONode::imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in) {
     double timestamp = msg->header.stamp.toSec();
     locker.lock();
     if (timestamp < last_timestamp_imu) {
-        std::string strout = "imu loop back, clear buffer";
-        neal::logger(neal::LOG_ERROR, strout);
+        neal::logger(neal::LOG_ERROR, "imu loop back, clear buffer");
         imu_buffer.clear();
     }
     last_timestamp_imu = timestamp;
@@ -476,8 +474,6 @@ void LIONode::updatePose() {
     pose3D[2] = atan2(R_IMU_G(1,0),R_IMU_G(0,0));
     locker1.unlock();
 
-    std::unique_lock<std::mutex> locker2(mtx_7DPose, std::defer_lock);
-    locker2.lock();
     pose7D[0] = IMU2DPose(0)*1000.0;  // m -> mm
     pose7D[1] = IMU2DPose(1)*1000.0;
     pose7D[2] = IMU2DPose(2)*1000.0;
@@ -485,21 +481,12 @@ void LIONode::updatePose() {
     pose7D[4] = q.y();
     pose7D[5] = q.z();
     pose7D[6] = q.w();
-    locker2.unlock();
 }
 
 std::vector<double> LIONode::read3DPose() {
     std::unique_lock<std::mutex> locker(mtx_3DPose, std::defer_lock);
     locker.lock();
     std::vector<double> out = pose3D;
-    locker.unlock();
-    return out;
-}
-
-std::vector<double> LIONode::read7DPose() {
-    std::unique_lock<std::mutex> locker(mtx_7DPose, std::defer_lock);
-    locker.lock();
-    std::vector<double> out = pose7D;
     locker.unlock();
     return out;
 }

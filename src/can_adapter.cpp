@@ -84,34 +84,49 @@ void CanDeviceComm::run() {
         if (recvData(recv_msg) == true) {
             switch(recv_msg.id & 0x780U) {
                 case 0x80U: {
-                    map_canopen[recv_msg.id & 0x7F]->recvEmergency(recv_msg.data);
+                    if (map_canopen.contains(recv_msg.id & 0x7F)) {
+                        map_canopen[recv_msg.id & 0x7F]->recvEmergency(recv_msg.data);
+                    }
                     break;
                 }
                 case 0x180U: {
-                    map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    if (map_canopen.contains(recv_msg.id & 0x7F)) {
+                        map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    }
                     break;
                 }
                 case 0x280U: {
-                    map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    if (map_canopen.contains(recv_msg.id & 0x7F)) {
+                        map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    }
                     break;
                 }
                 case 0x380U: {
-                    map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    if (map_canopen.contains(recv_msg.id & 0x7F)) {
+                        map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    }
                     break;
                 }
                 case 0x480U: {
-                    map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    if (map_canopen.contains(recv_msg.id & 0x7F)) {
+                        map_canopen[recv_msg.id & 0x7F]->recvTpdo(recv_msg.id & 0x780U, recv_msg.data);
+                    }
+                    break;
                 }
                 case 0x580U: {
-                    printf("recv data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", recv_msg.id, recv_msg.data[0], 
-                        recv_msg.data[1], recv_msg.data[2], recv_msg.data[3], recv_msg.data[4], recv_msg.data[5]);
-                    map_canopen[recv_msg.id & 0x7F]->recvSdo(recv_msg.data);
+                    //printf("recv data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", recv_msg.id, recv_msg.data[0], 
+                    //    recv_msg.data[1], recv_msg.data[2], recv_msg.data[3], recv_msg.data[4], recv_msg.data[5]);
+                    if (map_canopen.contains(recv_msg.id & 0x7F)) {
+                        map_canopen[recv_msg.id & 0x7F]->recvSdo(recv_msg.data);
+                    }
                     break;
                 }
                 case 0x700U: {
                     if (recv_msg.data_len == 1) {
                         if (recv_msg.data[0] == 0) {
-                            map_canopen[recv_msg.id & 0x7F]->recvBootup();
+                            if (map_canopen.contains(recv_msg.id & 0x7F)) {
+                                map_canopen[recv_msg.id & 0x7F]->recvBootup();
+                            }
                         } else {
 
                         }
@@ -134,15 +149,15 @@ void CanDeviceComm::run() {
             canalyst_ii_obj.ExternFlag = send_msg.is_extern_flag;
             canalyst_ii_obj.RemoteFlag = send_msg.is_remote_flag;
             memcpy((void*)canalyst_ii_obj.Data, (void*)send_msg.data, send_msg.data_len);
-            printf("send data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", send_msg.id, send_msg.data[0], 
-                send_msg.data[1], send_msg.data[2], send_msg.data[3], send_msg.data[4], send_msg.data[5]);
+            //printf("send data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", send_msg.id, send_msg.data[0], 
+            //    send_msg.data[1], send_msg.data[2], send_msg.data[3], send_msg.data[4], send_msg.data[5]);
             if (1 == VCI_Transmit(device_type, device_index, can_index, &canalyst_ii_obj, 1)) {
          
             } else {
                 printf("send data err\n");
             }
         }
-        usleep(200);
+        usleep(1000);
     }
 }
 
@@ -151,12 +166,18 @@ Canopen::Canopen(unsigned short node_id) : node_id(node_id) {
     if (comm == nullptr) {
         comm = new CanDeviceComm();
         comm->open();
+        printf("comm initial\n");
     }
     map_canopen.insert(node_id, this);
 }
     
 Canopen::~Canopen() {
-
+    if (comm != nullptr) {
+        comm->close();
+        comm->quit();
+        comm->terminate();
+        comm = nullptr;
+    }
 }
 
 void Canopen::recvEmergency(unsigned char *const) {

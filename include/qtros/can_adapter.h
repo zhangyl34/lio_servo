@@ -3,6 +3,7 @@
 #include "QThread"
 #include "QSemaphore"
 #include "QQueue"
+#include "QMutex"
 
 typedef struct {
 	unsigned int id;
@@ -11,6 +12,32 @@ typedef struct {
 	unsigned char data_len;
 	unsigned char data[8];
 } CanMessageStr;
+
+template<typename T>
+class ThreadSafeQueue {
+public:
+    void enqueue(const T&value) {
+        QMutexLocker locker(&m_mutex);
+        m_queue.enqueue(value);
+    };
+
+    T dequeue() {
+        QMutexLocker locker(&m_mutex);
+        if (m_queue.isEmpty()) {
+            return T();
+        }
+        return m_queue.dequeue();
+    }
+
+    bool isEmpty() {
+        QMutexLocker locker(&m_mutex);
+        return m_queue.isEmpty();
+    }
+
+private:
+    QQueue<T> m_queue;  
+    mutable QMutex m_mutex;  
+};
 
 class CanDeviceComm : public QThread {
 Q_OBJECT
@@ -29,7 +56,7 @@ private:
     int device_type;
     int device_index;
     int can_index;
-    QQueue<CanMessageStr> send_queue;
+    ThreadSafeQueue<CanMessageStr> send_queue;
 };
 
 class Canopen {

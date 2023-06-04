@@ -96,5 +96,5 @@ private:
 	MotorStatus cur_status;
 	F32 ctrl_target_velocity;
 	F32 cur_velocity;
-    QQueue<MotorCtrlMsg> motor_ctrl_queue;
+    ThreadSafeQueue<MotorCtrlMsg> motor_ctrl_queue;
 };
