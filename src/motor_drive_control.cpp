@@ -19,10 +19,13 @@ MotorDriveControl::MotorDriveControl(U8 node_id) : Canopen(node_id) {
 	this->node_id = node_id;
 	cur_status = NOT_READY_TO_SWITCH_ON;
 	ctrl_target_velocity = 0.0F;
+	usleep(100*1000);
 	
-	// this->start();  // 开启 run 线程，控制状态机的切换。
+	this->start();  // 开启 run 线程，控制状态机的切换。
 
-	// resetNode();  // 0x81
+	usleep(100*1000);
+
+	resetNode();  // 0x81
     usleep(100*1000);
 }
 
@@ -98,35 +101,35 @@ void MotorDriveControl::configPdo() {
 	writeOD(data, 2, 0x1800, 0x5);  // 事件定时器触发时间
     usleep(100*1000);
 
-	data[0] = 0x10;
-	data[1] = 0;
-	data[2] = 0;
-	data[3] = 0;
-	writeOD(data, 4, 0x6065, 0x0);
-	usleep(20*1000);
+	// data[0] = 0x10;
+	// data[1] = 0;
+	// data[2] = 0;
+	// data[3] = 0;
+	// writeOD(data, 4, 0x6065, 0x0);  // following error？
+	// usleep(20*1000);
 	
 	U32 val = 0x80000300U+node_id;
-	writeOD((unsigned char*)&val, 4, 0x1401, 1);
+	writeOD((unsigned char*)&val, 4, 0x1401, 1);  // RPDO2 COB-ID，啥意思？
 	usleep(20*1000);
 
 	val = 0x0U;
-	writeOD((unsigned char*)&val, 1, 0x1601, 0);
+	writeOD((unsigned char*)&val, 1, 0x1601, 0);  // RPDO2 的映射参数条目数量先归 0
 	usleep(20*1000);
 
 	val = 0x607E0008U;
-	writeOD((unsigned char*)&val, 4, 0x1601, 1);
+	writeOD((unsigned char*)&val, 4, 0x1601, 1);  // RPDO2 的映射参数 1，极性，1byte
 	usleep(20*1000);
 
 	val = 0x60FF0020U;
-	writeOD((unsigned char*)&val, 4, 0x1601, 2);
+	writeOD((unsigned char*)&val, 4, 0x1601, 2);  // RPDO2 的映射参数 2，速度，4byte
 	usleep(20*1000);
 
 	val = 0x2U;
-	writeOD((unsigned char*)&val, 1, 0x1601, 0);
+	writeOD((unsigned char*)&val, 1, 0x1601, 0);  // RPDO2 的映射参数条目数量设为 2
 	usleep(20*1000);
 
 	val = 0x00000300U+node_id;
-	writeOD((unsigned char*)&val, 4, 0x1401, 1);
+	writeOD((unsigned char*)&val, 4, 0x1401, 1);  // RPDO2 COB-ID，设回 300+Node-ID
 	usleep(20*1000);
 
     data[0] = 0xE8;
@@ -190,8 +193,9 @@ void MotorDriveControl::run()
 				sendGetCurVelocity();
 			}
 		} else {
-            usleep(1*1000);
+            
         }
+		usleep(1*1000);  // 拿出来会好吗？
 	}
 }
 

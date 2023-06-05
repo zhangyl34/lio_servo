@@ -511,10 +511,6 @@ void MainWindow::button1_startTest_slot() {
 			}
 		}
 
-		// std::vector<double> cartPosei_raw = lioNode.read7DPose();
-		// // Global 坐标系下，IMU 位置 + 四元数
-		// neal::logger(neal::LOG_INFO, "IMU7D_pose: " + std::to_string(cartPosei_raw[0]) + ' ' + std::to_string(cartPosei_raw[1]) + ' ' + std::to_string(cartPosei_raw[2]) + 
-		// 	' ' + std::to_string(cartPosei_raw[3]) + ' ' + std::to_string(cartPosei_raw[4]) + ' ' + std::to_string(cartPosei_raw[5]) + ' ' + std::to_string(cartPosei_raw[6]));
 		cartPosi_raw = fromGPose2CPose(lioNode.read3DPose());
 		// control 坐标系下，x y ori
 		neal::logger(neal::LOG_INFO, "IMU3D_pose_before_filter: " + std::to_string(cartPosi_raw[0]) + ' ' + std::to_string(cartPosi_raw[1]) + ' ' + std::to_string(cartPosi_raw[2]));
@@ -579,8 +575,8 @@ void MainWindow::button1_startTest_slot() {
 		float motorr_speed = wheelsVeli.x() * 60.0 / (2.0 * EIGEN_PI * cartPara.wheelsRadius);
 		neal::logger(neal::LOG_INFO, "motorl_speed: " + std::to_string(motorl_speed));
 		neal::logger(neal::LOG_INFO, "motorr_speed: " + std::to_string(motorr_speed));
-		// motor_1_drive_control.ctrlMotorMoveByVelocity(motorl_speed);  // vL, rpm
-		// motor_2_drive_control.ctrlMotorMoveByVelocity(motorr_speed);  // vR
+		motor_1_drive_control.ctrlMotorMoveByVelocity(motorl_speed);  // vL, rpm
+		motor_2_drive_control.ctrlMotorMoveByVelocity(motorr_speed);  // vR
 
 		usleep(99*1000);  // lio 位姿更新频率 10Hz；sleep 不能输入小数
 	}

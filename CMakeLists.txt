@@ -8,7 +8,7 @@ project(qtros)
 # debug mode.
 SET(CMAKE_BUILD_TYPE "Release")
 # SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
-SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
+# SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 
 SET(CMAKE_CXX_STANDARD 14)
 # This makes C++14 a requirement,

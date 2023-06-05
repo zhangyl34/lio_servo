@@ -56,6 +56,7 @@ bool CanDeviceComm::open() {
 
 bool CanDeviceComm::close() {
     VCI_CloseDevice(device_type, device_index);
+    return true;
 }
 
 bool CanDeviceComm::sendData(CanMessageStr& message_data) {
@@ -149,10 +150,10 @@ void CanDeviceComm::run() {
             canalyst_ii_obj.ExternFlag = send_msg.is_extern_flag;
             canalyst_ii_obj.RemoteFlag = send_msg.is_remote_flag;
             memcpy((void*)canalyst_ii_obj.Data, (void*)send_msg.data, send_msg.data_len);
-            //printf("send data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", send_msg.id, send_msg.data[0], 
-            //    send_msg.data[1], send_msg.data[2], send_msg.data[3], send_msg.data[4], send_msg.data[5]);
+            // printf("send data:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x!\n", send_msg.id, send_msg.data[0], 
+            //     send_msg.data[1], send_msg.data[2], send_msg.data[3], send_msg.data[4], send_msg.data[5]);
             if (1 == VCI_Transmit(device_type, device_index, can_index, &canalyst_ii_obj, 1)) {
-         
+
             } else {
                 printf("send data err\n");
             }
@@ -166,7 +167,6 @@ Canopen::Canopen(unsigned short node_id) : node_id(node_id) {
     if (comm == nullptr) {
         comm = new CanDeviceComm();
         comm->open();
-        printf("comm initial\n");
     }
     map_canopen.insert(node_id, this);
 }
@@ -193,12 +193,14 @@ void Canopen::recvBootup() {
 }
 
 bool Canopen::writeOD(unsigned char *data, unsigned char len, unsigned short index, unsigned char sub_index) {
+    
     CanMessageStr message_data;
     message_data.id = 0x600 + node_id;
     message_data.data_len = 8;
     message_data.is_extern_flag = 0;
     message_data.is_remote_flag = 0;
     memset(message_data.data, 0, 8);
+
     if (len == 1) {
         message_data.data[0] = 0x2FU;
         memcpy(&message_data.data[4], data, 1);
@@ -220,9 +222,11 @@ bool Canopen::writeOD(unsigned char *data, unsigned char len, unsigned short ind
     message_data.data[2] = index >> 8;
     message_data.data[3] = sub_index;
 
-    memcpy(send_sdo_data, message_data.data, 8);
-    memset(recv_sdo_data, 0, 8);
+    // memcpy(send_sdo_data, message_data.data, 8);
+    // memset(recv_sdo_data, 0, 8);
     comm->sendData(message_data);
+
+    return true;
 
     // if (true == sdo_handle_sem.tryAcquire(1, 500)) {
     //     if (recv_sdo_data[0] == 0x60U) {
@@ -249,9 +253,11 @@ bool Canopen::readOD(unsigned char *data, unsigned char len, unsigned short inde
     message_data.data[2] = index >> 8;
     message_data.data[3] = sub_index;
 
-    memcpy(send_sdo_data, message_data.data, 8);
-    memset(recv_sdo_data, 0, 8);
+    // memcpy(send_sdo_data, message_data.data, 8);
+    // memset(recv_sdo_data, 0, 8);
     comm->sendData(message_data);
+
+    return true;
 
     // if (true == sdo_handle_sem.tryAcquire(1, 500)) {
     //     if ((recv_sdo_data[0] == 0x4FU) && (1 == len)) {
@@ -311,15 +317,14 @@ void Canopen::resetNode() {
     message_data.is_remote_flag = 0;
     message_data.data[0] = 0x81;
     message_data.data[1] = node_id;
-
     comm->sendData(message_data);
 }
 
 void Canopen::recvSdo(unsigned char *data) {
-    if ((send_sdo_data[1] == data[1]) && 
-        (send_sdo_data[2] == data[2]) &&
-        (send_sdo_data[3] == data[3])) {
-            memcpy(recv_sdo_data, data, 8);
-            //sdo_handle_sem.release(1);
-    }
+    // if ((send_sdo_data[1] == data[1]) && 
+    //     (send_sdo_data[2] == data[2]) &&
+    //     (send_sdo_data[3] == data[3])) {
+    //         memcpy(recv_sdo_data, data, 8);
+    //         //sdo_handle_sem.release(1);
+    // }
 }
